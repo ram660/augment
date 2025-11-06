@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomeVision AI - Digital Twin</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏡 HomeVision AI</h1>
+            <p class="subtitle">Digital Twin System - Test Interface</p>
+            <div class="header-actions">
+                <button id="openStudioBtn" class="btn btn-secondary">🎛️ Open Studio (Skip Setup)</button>
+            </div>
+        </header>
+
+        <!-- Step 1: Create Home -->
+        <section class="card">
+            <h2>Step 1: Create Home</h2>
+            <form id="createHomeForm">
+                <div class="form-group">
+                    <label for="ownerEmail">Owner Email:</label>
+                    <input type="email" id="ownerEmail" value="test@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="homeName">Home Name:</label>
+                    <input type="text" id="homeName" value="My Test Home" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="street">Street:</label>
+                        <input type="text" id="street" value="123 Main Street" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="city">City:</label>
+                        <input type="text" id="city" value="Toronto" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="province">Province:</label>
+                        <input type="text" id="province" value="ON" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="postalCode">Postal Code:</label>
+                        <input type="text" id="postalCode" value="M5V 3A8" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="yearBuilt">Year Built:</label>
+                        <input type="number" id="yearBuilt" value="2015">
+                    </div>
+                    <div class="form-group">
+                        <label for="squareFootage">Square Footage:</label>
+                        <input type="number" id="squareFootage" value="2500">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="bedrooms">Bedrooms:</label>
+                        <input type="number" id="bedrooms" value="4">
+                    </div>
+                    <div class="form-group">
+                        <label for="bathrooms">Bathrooms:</label>
+                        <input type="number" step="0.5" id="bathrooms" value="3">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Home</button>
+            </form>
+            <div id="homeResult" class="result"></div>
+        </section>
+
+        <!-- Step 2: Upload Floor Plan -->
+        <section class="card" id="floorPlanSection" style="display: none;">
+            <h2>Step 2: Upload Floor Plan</h2>
+            <form id="uploadFloorPlanForm">
+                <div class="form-group">
+                    <label for="floorPlanFile">Floor Plan Image:</label>
+                    <input type="file" id="floorPlanFile" accept="image/*" required>
+                    <div id="floorPlanPreview" class="image-preview"></div>
+                </div>
+                <div class="form-group">
+                    <label for="floorLevel">Floor Level:</label>
+                    <input type="number" id="floorLevel" value="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="floorName">Floor Name:</label>
+                    <input type="text" id="floorName" value="Main Floor">
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <span class="btn-text">Analyze Floor Plan</span>
+                    <span class="spinner" style="display: none;"></span>
+                </button>
+            </form>
+            <div id="floorPlanResult" class="result"></div>
+        </section>
+
+        <!-- Step 3: Upload Room Images -->
+        <section class="card" id="roomImagesSection" style="display: none;">
+            <h2>Step 3: Upload Room Images</h2>
+            <div id="roomsList"></div>
+        </section>
+
+        <!-- Step 4: View Digital Twin -->
+        <section class="card" id="digitalTwinSection" style="display: none;">
+            <h2>Digital Twin Data</h2>
+            <button id="refreshDigitalTwin" class="btn btn-secondary">Refresh Data</button>
+            <div id="digitalTwinResult" class="result"></div>
+        </section>
+
+        <!-- Studio: CSV-backed visual workspace -->
+        <section class="card" id="studioSection" style="display: none;">
+            <h2>Studio</h2>
+            <div class="studio-toolbar">
+                <div class="left">
+                    <label>Floor:</label>
+                    <select id="studioFloorFilter"></select>
+                    <label>Room:</label>
+                    <select id="studioRoomFilter"></select>
+                    <button id="resetFilters" class="btn btn-secondary">Reset</button>
+                </div>
+                <div class="right">
+                    <button id="zoomOut" class="btn btn-secondary">-</button>
+                    <button id="zoomIn" class="btn btn-secondary">+</button>
+                    <button id="zoomReset" class="btn btn-secondary">Reset Zoom</button>
+                </div>
+            </div>
+            <div class="studio-layout">
+                <aside class="studio-sidebar">
+                    <h3>Images</h3>
+                    <div id="studioImageList" class="image-list"></div>
+                </aside>
+                <main class="studio-canvas-wrapper">
+                    <div id="studioCanvas" class="studio-canvas"></div>
+                </main>
+            </div>
+
+            <div id="imageModal" class="modal" style="display:none;">
+                <div class="modal-content">
+                    <span id="modalClose" class="modal-close">&times;</span>
+                    <img id="modalImage" src="" alt="Preview">
+                    <pre id="modalMeta"></pre>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

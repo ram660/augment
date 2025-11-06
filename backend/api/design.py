@@ -1,0 +1,616 @@
+"""
+Design Transformation API - Endpoints for AI-powered room transformations.
+
+This API provides endpoints for transforming room images using Gemini Imagen.
+All transformations preserve unchanged elements while only modifying what the customer requests.
+"""
+
+import logging
+from typing import List, Optional, Dict, Any
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+import io
+from PIL import Image
+
+from backend.database import get_async_db
+from backend.models import RoomImage, Room, TransformationType, TransformationStatus
+from backend.services.design_transformation_service import DesignTransformationService
+from backend.services.transformation_storage_service import TransformationStorageService
+import time
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/design", tags=["design"])
+
+
+# Request/Response Models
+class PaintTransformRequest(BaseModel):
+    """Request model for paint transformation."""
+    room_image_id: UUID = Field(..., description="ID of the room image to transform")
+    target_color: str = Field(..., description="Target wall color (e.g., 'soft gray', '#F5F5DC')")
+    target_finish: str = Field(default="matte", description="Paint finish (matte, eggshell, satin, semi-gloss, gloss)")
+    walls_only: bool = Field(default=True, description="If true, only change walls (not ceiling)")
+    preserve_trim: bool = Field(default=True, description="If true, keep trim/molding original color")
+    num_variations: int = Field(default=4, ge=1, le=4, description="Number of variations to generate")
+
+
+class FlooringTransformRequest(BaseModel):
+    """Request model for flooring transformation."""
+    room_image_id: UUID
+    target_material: str = Field(..., description="Flooring material (hardwood, tile, carpet, vinyl, laminate)")
+    target_style: str = Field(..., description="Style details (e.g., 'wide plank oak', 'herringbone pattern')")
+    target_color: Optional[str] = Field(None, description="Optional color specification")
+    preserve_rugs: bool = Field(default=True, description="If true, keep area rugs unchanged")
+    num_variations: int = Field(default=4, ge=1, le=4)
+
+
+class CabinetTransformRequest(BaseModel):
+    """Request model for cabinet transformation."""
+    room_image_id: UUID
+    target_color: str = Field(..., description="Desired cabinet color")
+    target_finish: str = Field(default="painted", description="Finish type (painted, stained, natural wood, glazed)")
+    target_style: Optional[str] = Field(None, description="Optional style (shaker, flat panel, raised panel)")
+    preserve_hardware: bool = Field(default=False, description="If true, keep existing hardware")
+    num_variations: int = Field(default=4, ge=1, le=4)
+
+
+class CountertopTransformRequest(BaseModel):
+    """Request model for countertop transformation."""
+    room_image_id: UUID
+    target_material: str = Field(..., description="Material (granite, quartz, marble, butcher block, laminate, concrete)")
+    target_color: str = Field(..., description="Color specification")
+    target_pattern: Optional[str] = Field(None, description="Optional pattern (veined, speckled, solid)")
+    edge_profile: str = Field(default="standard", description="Edge style (standard, beveled, bullnose, waterfall)")
+    num_variations: int = Field(default=4, ge=1, le=4)
+
+
+class BacksplashTransformRequest(BaseModel):
+    """Request model for backsplash transformation."""
+    room_image_id: UUID
+    target_material: str = Field(..., description="Material (ceramic tile, glass tile, subway tile, mosaic, stone)")
+    target_pattern: str = Field(..., description="Pattern/layout (subway, herringbone, stacked, mosaic)")
+    target_color: str = Field(..., description="Tile color")
+    grout_color: Optional[str] = Field(None, description="Optional grout color")
+    num_variations: int = Field(default=4, ge=1, le=4)
+
+
+class LightingTransformRequest(BaseModel):
+    """Request model for lighting transformation."""
+    room_image_id: UUID
+    target_fixture_style: str = Field(..., description="Fixture style (modern, traditional, industrial, farmhouse)")
+    target_finish: str = Field(..., description="Finish (brushed nickel, oil-rubbed bronze, chrome, brass, black)")
+    adjust_ambiance: Optional[str] = Field(None, description="Optional ambiance (warmer, cooler, brighter, dimmer)")
+    num_variations: int = Field(default=4, ge=1, le=4)
+
+
+class FurnitureTransformRequest(BaseModel):
+    """Request model for furniture transformation."""
+    room_image_id: UUID
+    action: str = Field(..., description="Action (add, remove, replace)")
+    furniture_description: str = Field(..., description="Description of furniture item")
+    placement: Optional[str] = Field(None, description="Optional placement description")
+    num_variations: int = Field(default=4, ge=1, le=4)
+
+
+class CustomTransformRequest(BaseModel):
+    """Request model for custom transformation with user prompt."""
+    room_image_id: UUID
+    custom_prompt: str = Field(..., description="Custom transformation prompt describing desired changes")
+    transformation_type: str = Field(default="custom", description="Type of transformation")
+    num_variations: int = Field(default=4, ge=1, le=4)
+
+
+class TransformationResponse(BaseModel):
+    """Response model for transformations."""
+    success: bool
+    message: str
+    transformation_id: UUID
+    num_variations: int
+    transformation_type: str
+    original_image_id: UUID
+    status: str
+    image_urls: List[str] = []  # Placeholder URLs for now
+
+
+class TransformationHistoryItem(BaseModel):
+    """Model for transformation history item."""
+    id: UUID
+    transformation_type: str
+    status: str
+    parameters: Dict[str, Any]
+    num_variations: int
+    created_at: str
+    processing_time_seconds: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TransformationHistoryResponse(BaseModel):
+    """Response model for transformation history."""
+    room_image_id: UUID
+    transformations: List[TransformationHistoryItem]
+    total_count: int
+
+
+# Helper Functions
+async def load_room_image(room_image_id: UUID, db: AsyncSession) -> RoomImage:
+    """Load room image from database."""
+    from sqlalchemy import select
+    
+    result = await db.execute(
+        select(RoomImage).where(RoomImage.id == room_image_id)
+    )
+    room_image = result.scalar_one_or_none()
+    
+    if not room_image:
+        raise HTTPException(status_code=404, detail=f"Room image {room_image_id} not found")
+    
+    return room_image
+
+
+async def get_image_from_url(image_url: str) -> Image.Image:
+    """Download and load image from URL."""
+    import httpx
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(image_url)
+        response.raise_for_status()
+        return Image.open(io.BytesIO(response.content))
+
+
+# API Endpoints
+@router.post("/transform-paint", response_model=TransformationResponse)
+async def transform_paint(
+    request: PaintTransformRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Transform wall paint color while preserving everything else.
+    
+    This endpoint changes only the wall paint color and finish, keeping all
+    furniture, flooring, fixtures, and other elements unchanged.
+    """
+    start_time = time.time()
+    storage_service = TransformationStorageService()
+
+    try:
+        # Load room image
+        room_image = await load_room_image(request.room_image_id, db)
+
+        # Create transformation record
+        transformation = await storage_service.create_transformation(
+            db=db,
+            room_image_id=request.room_image_id,
+            transformation_type=TransformationType.PAINT,
+            parameters={
+                "target_color": request.target_color,
+                "target_finish": request.target_finish,
+                "walls_only": request.walls_only,
+                "preserve_trim": request.preserve_trim
+            },
+            num_variations=request.num_variations
+        )
+
+        # Update status to processing
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.PROCESSING
+        )
+
+        # Get image from URL
+        image = await get_image_from_url(room_image.image_url)
+
+        # Perform transformation
+        service = DesignTransformationService()
+        transformed_images = await service.transform_paint(
+            image=image,
+            target_color=request.target_color,
+            target_finish=request.target_finish,
+            walls_only=request.walls_only,
+            preserve_trim=request.preserve_trim,
+            num_variations=request.num_variations
+        )
+
+        # Save transformed images
+        transformation_images = await storage_service.save_transformation_images(
+            db=db,
+            transformation_id=transformation.id,
+            images=transformed_images
+        )
+
+        # Calculate processing time
+        processing_time = int(time.time() - start_time)
+
+        # Update status to completed
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.COMPLETED,
+            processing_time_seconds=processing_time
+        )
+
+        return TransformationResponse(
+            success=True,
+            message=f"Successfully generated {len(transformed_images)} paint transformation variations",
+            transformation_id=transformation.id,
+            num_variations=len(transformed_images),
+            transformation_type="paint",
+            original_image_id=request.room_image_id,
+            status="completed",
+            image_urls=[img.image_url for img in transformation_images]
+        )
+
+    except Exception as e:
+        logger.error(f"Error transforming paint: {str(e)}", exc_info=True)
+
+        # Update transformation status to failed if it was created
+        if 'transformation' in locals():
+            await storage_service.update_transformation_status(
+                db=db,
+                transformation_id=transformation.id,
+                status=TransformationStatus.FAILED,
+                error_message=str(e)
+            )
+
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transform-flooring", response_model=TransformationResponse)
+async def transform_flooring(
+    request: FlooringTransformRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Transform flooring while preserving everything else.
+    
+    This endpoint changes only the flooring material and style, keeping all
+    walls, furniture, fixtures, and other elements unchanged.
+    """
+    try:
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+        
+        service = DesignTransformationService()
+        transformed_images = await service.transform_flooring(
+            image=image,
+            target_material=request.target_material,
+            target_style=request.target_style,
+            target_color=request.target_color,
+            preserve_rugs=request.preserve_rugs
+        )
+        
+        return TransformationResponse(
+            success=True,
+            message=f"Successfully generated {len(transformed_images)} flooring transformation variations",
+            num_variations=len(transformed_images),
+            transformation_type="flooring",
+            original_image_id=request.room_image_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error transforming flooring: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transform-cabinets", response_model=TransformationResponse)
+async def transform_cabinets(
+    request: CabinetTransformRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Transform cabinet color/finish while preserving everything else.
+    
+    This endpoint changes only the cabinet color and finish, keeping all
+    countertops, backsplash, appliances, and other elements unchanged.
+    """
+    try:
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+        
+        service = DesignTransformationService()
+        transformed_images = await service.transform_cabinets(
+            image=image,
+            target_color=request.target_color,
+            target_finish=request.target_finish,
+            target_style=request.target_style,
+            preserve_hardware=request.preserve_hardware
+        )
+        
+        return TransformationResponse(
+            success=True,
+            message=f"Successfully generated {len(transformed_images)} cabinet transformation variations",
+            num_variations=len(transformed_images),
+            transformation_type="cabinets",
+            original_image_id=request.room_image_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error transforming cabinets: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transform-countertops", response_model=TransformationResponse)
+async def transform_countertops(
+    request: CountertopTransformRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Transform countertops while preserving everything else."""
+    try:
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+        
+        service = DesignTransformationService()
+        transformed_images = await service.transform_countertops(
+            image=image,
+            target_material=request.target_material,
+            target_color=request.target_color,
+            target_pattern=request.target_pattern,
+            edge_profile=request.edge_profile
+        )
+        
+        return TransformationResponse(
+            success=True,
+            message=f"Successfully generated {len(transformed_images)} countertop transformation variations",
+            num_variations=len(transformed_images),
+            transformation_type="countertops",
+            original_image_id=request.room_image_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error transforming countertops: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transform-backsplash", response_model=TransformationResponse)
+async def transform_backsplash(
+    request: BacksplashTransformRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Transform backsplash while preserving everything else."""
+    try:
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+        
+        service = DesignTransformationService()
+        transformed_images = await service.transform_backsplash(
+            image=image,
+            target_material=request.target_material,
+            target_pattern=request.target_pattern,
+            target_color=request.target_color,
+            grout_color=request.grout_color
+        )
+        
+        return TransformationResponse(
+            success=True,
+            message=f"Successfully generated {len(transformed_images)} backsplash transformation variations",
+            num_variations=len(transformed_images),
+            transformation_type="backsplash",
+            original_image_id=request.room_image_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error transforming backsplash: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transform-custom", response_model=TransformationResponse)
+async def transform_custom(
+    request: CustomTransformRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Apply a custom transformation based on user's prompt.
+
+    This endpoint allows users to describe any transformation they want in natural language.
+    The AI will interpret the prompt and apply the changes while preserving everything else.
+    """
+    try:
+        service = DesignTransformationService(db)
+
+        # Build a custom prompt from the user's description
+        custom_instructions = f"""
+Transform this room image based on the following request:
+{request.custom_prompt}
+
+CRITICAL PRESERVATION RULES:
+- Only modify what is explicitly mentioned in the request
+- Preserve all other elements exactly as they are
+- Maintain the room's layout, dimensions, and perspective
+- Keep lighting and shadows realistic
+- Ensure the transformation looks natural and professionally done
+"""
+
+        # Use the generic transformation method with custom prompt
+        transformed_images = await service.transform_room_image(
+            room_image_id=request.room_image_id,
+            transformation_type=request.transformation_type,
+            custom_prompt=custom_instructions,
+            num_variations=request.num_variations
+        )
+
+        return TransformationResponse(
+            success=True,
+            message=f"Successfully generated {len(transformed_images)} custom transformation variations",
+            num_variations=len(transformed_images),
+            transformation_type=request.transformation_type,
+            original_image_id=request.room_image_id
+        )
+
+    except Exception as e:
+        logger.error(f"Error applying custom transformation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Transformation History Endpoints
+@router.get("/transformations/{room_image_id}", response_model=TransformationHistoryResponse)
+async def get_transformation_history(
+    room_image_id: UUID,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Get transformation history for a room image.
+
+    Returns all transformations performed on a specific room image,
+    ordered by most recent first.
+    """
+    try:
+        storage_service = TransformationStorageService()
+
+        # Get transformations
+        transformations = await storage_service.get_transformations_for_room_image(
+            db=db,
+            room_image_id=room_image_id
+        )
+
+        # Convert to response format
+        history_items = []
+        for t in transformations:
+            history_items.append(TransformationHistoryItem(
+                id=t.id,
+                transformation_type=t.transformation_type.value,
+                status=t.status.value,
+                parameters=t.parameters,
+                num_variations=t.num_variations,
+                created_at=t.created_at.isoformat(),
+                processing_time_seconds=t.processing_time_seconds
+            ))
+
+        return TransformationHistoryResponse(
+            room_image_id=room_image_id,
+            transformations=history_items,
+            total_count=len(history_items)
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting transformation history: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/transformation/{transformation_id}")
+async def get_transformation_details(
+    transformation_id: UUID,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Get detailed information about a specific transformation.
+
+    Returns the transformation record and all generated image variations.
+    """
+    try:
+        storage_service = TransformationStorageService()
+
+        # Get transformation
+        transformation = await storage_service.get_transformation(
+            db=db,
+            transformation_id=transformation_id
+        )
+
+        if not transformation:
+            raise HTTPException(status_code=404, detail=f"Transformation {transformation_id} not found")
+
+        # Get images
+        images = await storage_service.get_transformation_images(
+            db=db,
+            transformation_id=transformation_id
+        )
+
+        return {
+            "id": transformation.id,
+            "room_image_id": transformation.room_image_id,
+            "transformation_type": transformation.transformation_type.value,
+            "status": transformation.status.value,
+            "parameters": transformation.parameters,
+            "num_variations": transformation.num_variations,
+            "created_at": transformation.created_at.isoformat(),
+            "processing_time_seconds": transformation.processing_time_seconds,
+            "error_message": transformation.error_message,
+            "images": [
+                {
+                    "id": img.id,
+                    "image_url": img.image_url,
+                    "variation_number": img.variation_number,
+                    "is_selected": img.is_selected,
+                    "is_applied": img.is_applied,
+                    "width": img.width,
+                    "height": img.height
+                }
+                for img in images
+            ]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting transformation details: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transformation/{transformation_image_id}/select")
+async def select_favorite_variation(
+    transformation_image_id: UUID,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Mark a transformation image as the user's favorite variation.
+
+    This will unselect all other variations for the same transformation.
+    """
+    try:
+        storage_service = TransformationStorageService()
+
+        transformation_image = await storage_service.select_favorite_variation(
+            db=db,
+            transformation_image_id=transformation_image_id
+        )
+
+        return {
+            "success": True,
+            "message": f"Selected variation {transformation_image.variation_number} as favorite",
+            "transformation_image_id": transformation_image.id,
+            "variation_number": transformation_image.variation_number
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error selecting favorite variation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/transformation/{transformation_id}")
+async def delete_transformation(
+    transformation_id: UUID,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Delete a transformation and all its generated images.
+
+    This will also delete the images from cloud storage (when implemented).
+    """
+    try:
+        storage_service = TransformationStorageService()
+
+        deleted = await storage_service.delete_transformation(
+            db=db,
+            transformation_id=transformation_id
+        )
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Transformation {transformation_id} not found")
+
+        return {
+            "success": True,
+            "message": f"Transformation {transformation_id} deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting transformation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+

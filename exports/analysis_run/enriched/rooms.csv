@@ -1,0 +1,32 @@
+id,home_id,name,room_type,floor_level,length,width,height,area
+6e177af4-dd39-4269-8366-d3ef5f42b5cb,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Covered Patio,patio,1,13.67,12.75,,174.29
+f15c78fc-1a37-4076-ab88-bd1938e2b93d,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Dining Area,dining_room,1,12.42,10.17,,126.31
+28166290-c390-4382-a43f-3c04c0bb391f,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Kitchen,kitchen,1,11.08,9.83,,108.92
+32cd6d46-fa91-4c9d-9e19-24632594a8b0,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Living Room,living_room,1,19.75,14.58,,288.09
+63499918-0c02-4742-a501-2b7f0d2b04b0,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,4 Pc Bath,bathroom,1,7.0,7.0,,49.0
+b57441c6-2e41-45e0-8581-00179a1c9b56,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Storage Room,storage,1,5.25,6.83,,35.87
+99ac09ef-f90e-4d7e-83b9-5a3634e2292b,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Bedroom,bedroom,1,13.58,10.83,,147.09
+8cfbbaec-e228-49e0-9c9e-a16c9d436ada,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Flex Room,other,1,13.75,12.0,,165.0
+8632fb6b-4bd8-45b1-a029-fa26a332e832,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Under Stair Storage,storage,1,7.25,6.67,,48.36
+e6b24745-88f1-4047-b873-537d658859d7,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Laundry Closet,laundry_room,1,3.0,3.0,,9.0
+a1190b67-2a47-4893-8810-62fcf09240dc,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Furnace Room,utility_room,1,4.0,4.0,,16.0
+a6441238-41fc-4b5b-9164-4abcc58ca055,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Deck,deck,1,13.67,12.75,,174.29
+8d4ac875-30dc-4024-a17c-eefe899505d3,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Eating Area,dining_room,1,12.42,10.17,,126.31
+00464600-79f7-4d7e-8120-803aa7645b6d,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Kitchen,kitchen,1,14.58,11.83,,172.48
+8f75d78e-5740-4963-8af0-c3fd82319592,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Living Room,living_room,1,14.58,13.17,,191.99
+9ec76589-19d4-4a2b-9f41-38abfa6df67c,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Pantry,pantry,1,4.0,4.0,,16.0
+d5f2045f-fe77-4eb6-9b77-08cccf70aae9,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Bedroom,bedroom,1,10.75,8.67,,93.22
+71885fbd-f95c-471e-a7f3-92c7597aac4f,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,5 Pc Bath,bathroom,1,6.0,7.5,,45.0
+627420c9-31cd-49ab-b3ed-846e9ae2bc6b,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Entry Foyer,foyer,1,12.75,11.83,,150.89
+54a19a18-cb58-4ecf-b9e1-e738ae9f6a2a,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Dining Room,dining_room,1,12.75,9.83,,125.32
+1c779c46-8435-425c-8449-5eaf2fe70798,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Laundry Room,laundry_room,1,7.0,6.25,,43.75
+7a1fdb63-bf10-43bd-8817-497b5860fbad,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Garage,garage,1,23.0,22.0,,506.0
+318439ec-7a46-490d-98d1-d4dacd3b6bdf,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Sitting Area,living_room,2,10.17,7.08,,71.99
+571aef09-9603-4e8f-ba9f-75b1e9203f07,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,5 Pc Ensuite,bathroom,2,10.0,10.6,,106.0
+a55d9b8a-eb1a-4fba-822b-39e7b63ee44e,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Primary Bedroom,bedroom,2,14.67,13.67,,200.58
+1f95eec0-fb82-460d-978c-fe2d5b43c35a,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Walk-In Closet,walk_in_closet,2,7.42,7.17,,53.2
+2649860a-5f0a-405c-bdcf-35b9323b6b3a,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Bedroom 1,bedroom,2,16.83,11.33,,190.69
+f9009042-ddd4-4197-b5c5-1a762055cf71,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Bedroom 2,bedroom,2,11.33,11.33,,128.37
+182ce71d-45b7-4a3a-b11b-0fa642d83314,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,3 Pc Bath,bathroom,2,5.0,8.0,,40.0
+9aa84d21-7cbf-4abe-a929-ec0c309236b4,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Linen Closet,closet,2,2.0,3.0,,6.0
+10568b9f-6af9-4f10-ac6b-3a1b79563998,4d0a1e7e-b2ea-4631-9b19-68cdcb6ddb1b,Recreation Room,family_room,2,17.58,14.17,,249.07

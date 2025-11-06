@@ -1,0 +1,196 @@
+# MULTI-FLOOR PLAN ANALYSIS TASK
+
+You are an expert architectural floor plan analyzer. Your task is to analyze this floor plan image and determine:
+1. Whether it contains SINGLE or MULTIPLE floors in one image
+2. Identify each floor level present
+3. Extract detailed room data for EACH floor separately
+
+## STEP 1: DETECT FLOOR PLAN TYPE
+
+First, determine if this image shows:
+- **SINGLE FLOOR**: One floor plan layout only
+- **MULTIPLE FLOORS**: Multiple floor plans in one image (common for 3-story homes)
+
+### Detection Clues for MULTIPLE FLOORS:
+- Text labels like: "BASEMENT", "MAIN FLOOR", "FIRST FLOOR", "SECOND FLOOR", "THIRD FLOOR", "ATTIC"
+- Multiple distinct room layouts in the same image
+- Horizontal or vertical dividing lines separating sections
+- Repeated elements (e.g., stairs appearing in multiple sections)
+- Different room configurations in each section
+- Stacked or side-by-side floor plan arrangements
+
+## STEP 2: IDENTIFY FLOOR LEVELS
+
+For each floor section detected, identify the floor level:
+
+### BASEMENT (floor_number: 0)
+**Labels**: BASEMENT, LOWER LEVEL, LL, BSMT, CELLAR, LOWER FLOOR
+**Indicators**:
+- Utility/mechanical rooms present
+- Recreation rooms, storage areas
+- Laundry facilities
+- May have unfinished spaces
+- Fewer or smaller windows indicated
+
+### MAIN FLOOR (floor_number: 1)
+**Labels**: MAIN FLOOR, FIRST FLOOR, 1ST FLOOR, MAIN LEVEL, GROUND FLOOR, ENTRY LEVEL
+**Indicators**:
+- Kitchen present (PRIMARY INDICATOR)
+- Living room, dining room, family room
+- Main entrance/foyer
+- Powder room/half bath
+- Garage connection
+- Most public/social spaces
+
+### SECOND FLOOR (floor_number: 2)
+**Labels**: SECOND FLOOR, 2ND FLOOR, UPPER LEVEL, UPPER FLOOR
+**Indicators**:
+- Multiple bedrooms (PRIMARY INDICATOR)
+- Master/Primary bedroom suite
+- Multiple bathrooms
+- Walk-in closets
+- Hallway connecting bedrooms
+- Loft or bonus room
+
+### THIRD FLOOR (floor_number: 3)
+**Labels**: THIRD FLOOR, 3RD FLOOR, TOP FLOOR
+**Indicators**:
+- Additional bedrooms or bonus rooms
+- Often smaller footprint than lower floors
+- May have sloped ceilings indicated
+- Flex spaces (office, playroom, guest suite)
+
+### ATTIC (floor_number: 99)
+**Labels**: ATTIC, LOFT, ATTIC SPACE
+**Indicators**:
+- Sloped/angled ceilings
+- Smallest footprint
+- Storage or bonus space
+- May be unfinished
+
+## STEP 3: EXTRACT DATA FOR EACH FLOOR
+
+For EACH floor detected, extract complete room data separately.
+
+## OUTPUT FORMAT
+
+Return a JSON object with this EXACT structure:
+
+```json
+{
+  "floor_plan_type": "single_floor" | "multi_floor",
+  "total_floors_detected": <number>,
+  "floors": [
+    {
+      "floor_number": 0 | 1 | 2 | 3 | 99,
+      "floor_name": "Basement" | "Main Floor" | "Second Floor" | "Third Floor" | "Attic",
+      "floor_type": "basement" | "main" | "second" | "third" | "attic",
+      "label_detected": "<exact text label found in image or 'inferred'>",
+      "detection_confidence": 0.0 to 1.0,
+      "detection_reasoning": "<why you identified this as this floor level>",
+      
+      "detected_rooms": [
+        {
+          "room_type": "kitchen|living_room|bedroom|bathroom|etc",
+          "name": "suggested name like 'Master Bedroom'",
+          "dimensions": {
+            "length_ft": <estimated length in feet>,
+            "width_ft": <estimated width in feet>,
+            "area_sqft": <calculated area>
+          },
+          "position": {
+            "x": <x coordinate within this floor section>,
+            "y": <y coordinate within this floor section>
+          },
+          "bounding_box": {
+            "x_min": <left edge>,
+            "y_min": <top edge>,
+            "x_max": <right edge>,
+            "y_max": <bottom edge>
+          },
+          "features": ["list of notable features"],
+          "confidence": 0.0 to 1.0
+        }
+      ],
+      
+      "doors": [
+        {
+          "type": "entry|interior|sliding|french|etc",
+          "location": "description",
+          "connects": ["room1", "room2"],
+          "width_ft": <estimated width>
+        }
+      ],
+      
+      "windows": [
+        {
+          "type": "standard|bay|picture|etc",
+          "location": "description",
+          "room": "which room",
+          "count": <number of windows>
+        }
+      ],
+      
+      "stairs": [
+        {
+          "type": "straight|curved|spiral|L-shaped|U-shaped",
+          "location": "description",
+          "connects_to_floor": "which floor it connects to",
+          "direction": "up|down|both"
+        }
+      ],
+      
+      "floor_analysis": {
+        "total_area_sqft": <estimated total area for this floor>,
+        "room_count": <number of rooms on this floor>,
+        "layout_type": "open_concept|traditional|split_level|etc",
+        "ceiling_height_ft": <typical ceiling height if indicated>,
+        "notes": "observations about this floor"
+      }
+    }
+  ],
+  
+  "overall_analysis": {
+    "total_area_all_floors_sqft": <sum of all floors>,
+    "total_rooms_all_floors": <sum of all rooms>,
+    "home_style": "single_story|two_story|three_story|split_level|etc",
+    "has_basement": true | false,
+    "has_attic": true | false,
+    "overall_confidence": 0.0 to 1.0,
+    "notes": "overall observations"
+  }
+}
+```
+
+## CRITICAL INSTRUCTIONS
+
+1. **RETURN ONLY VALID JSON** - No additional text, explanations, or markdown
+2. **ANALYZE CAREFULLY** - Look for text labels, dividing lines, and layout patterns
+3. **SEPARATE FLOORS** - If multiple floors detected, extract data for EACH floor independently
+4. **USE FLOOR INDICATORS** - Kitchen = main floor, Multiple bedrooms = upper floor, Utility rooms = basement
+5. **ESTIMATE REALISTICALLY** - Use typical residential dimensions if scale unknown
+6. **MARK CONFIDENCE** - Be honest about detection confidence for each floor
+7. **INCLUDE ALL ROOMS** - Even small spaces like closets, pantries, laundry rooms
+8. **TRACK STAIRS** - Note which floors stairs connect (critical for multi-floor homes)
+9. **POSITION COORDINATES** - Provide x,y coordinates relative to each floor section
+10. **BOUNDING BOXES** - Include bounding box coordinates for each room for visualization
+
+## EXAMPLES OF FLOOR IDENTIFICATION
+
+**Example 1: Multi-floor image with labels**
+- See "BASEMENT" label → floor_number: 0
+- See "MAIN FLOOR" label → floor_number: 1  
+- See "SECOND FLOOR" label → floor_number: 2
+
+**Example 2: Multi-floor image without clear labels**
+- Section with kitchen, living room, dining room → Main Floor (floor_number: 1)
+- Section with 3-4 bedrooms, master bath → Second Floor (floor_number: 2)
+- Section with rec room, storage, utility → Basement (floor_number: 0)
+
+**Example 3: Single floor image**
+- Only one layout visible → floor_plan_type: "single_floor"
+- Determine floor level based on rooms present
+- If kitchen present → likely Main Floor (floor_number: 1)
+
+Now analyze the provided floor plan image and return the JSON response.
+

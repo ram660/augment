@@ -1,0 +1,302 @@
+id,room_id,product_category,product_type,brand,style,color,material,confidence_score
+c45ae36c-ec54-4e6b-bfed-5c567cc99cab,,appliance,refrigerator,,modern,stainless_steel,metal,0.9
+c7e3a25c-8c2f-4c1f-823a-498c2bda0465,,appliance,dishwasher,,modern,stainless_steel,metal,0.8
+651cf628-cf82-4350-a8e3-ef9ba0612be9,,appliance,range_hood,,modern,stainless_steel,metal,0.75
+39a14eb0-7d68-4e4c-8055-298f28f3d5b4,,furniture,bar_stool,,transitional,black,wood_and_faux_leather,0.9
+011cc222-69b0-44b7-8f6f-f43edfd717ea,,decor,wall_clock,,modern,black,metal,0.8
+3390b8ae-d886-494d-ad42-83a9c63d5c06,,appliance,refrigerator,,french door,stainless steel,metal,0.9
+88c771f5-1a4b-4dff-9a34-ea133bcfb970,,appliance,dishwasher,,integrated,stainless steel,metal,0.8
+55e0d4ee-fe92-4d9e-b6a3-7304fd5def3d,,appliance,range hood,,chimney,stainless steel,metal,0.85
+bb15c4ca-2b9e-422f-999f-a0e60c0850d1,,furniture,kitchen island,,transitional,"off-white (base), black (top)","painted wood, granite",0.95
+9c3bb6dd-7edd-47bc-96c9-a45654bf7aae,,furniture,bar stool,,transitional,dark brown/black,"wood/metal, upholstered seat",0.9
+2ed5d8ce-19ff-4a48-82db-aa7f6ded59a2,,decor,wall clock,,modern,dark grey/black,metal/plastic,0.8
+c008c88a-a3d3-4a65-9df7-eac1a08c269e,,appliance,refrigerator,,modern,stainless steel,metal,0.95
+45376d65-f259-49f0-9784-c0a94e8b5095,,appliance,range,,modern,stainless steel and black,"metal, glass",0.9
+071786b8-5bdc-4b32-bbdb-7a301188d096,,appliance,range_hood,,modern,stainless steel,metal,0.85
+45f0159d-4598-4a07-af82-3104fd763acb,,furniture,bar_stool,,transitional,black,"faux leather/vinyl, metal",0.9
+0c1e4aa4-79bf-4d96-8d33-a2b8abe6ce33,,decor,potted_plant,,natural,green,"plant, ceramic",0.8
+5a1f7df9-ffac-4c16-809d-e279dc5a2f10,,decor,wall_clock,,traditional,"black, white","metal, glass",0.75
+f8c2a3ba-5d19-4b8e-b24a-613ad21eb3e5,,furniture,bed,,transitional,black,metal,0.95
+d771707f-e8b8-4608-b3c0-abd069985356,,furniture,nightstand,,traditional,dark brown,wood,0.9
+89a66288-2ba1-44ee-af35-a3eedb078d03,,decor,floating_shelf,,modern,black,wood,0.9
+0a912a95-7008-47e2-b4f8-4accd4842491,,decor,artwork,,contemporary,multi-color,canvas_and_wood_frame,0.85
+43fe1f75-c12e-41b1-b122-b4fd46298b37,,furniture,console_table,,glam,silver,metal_and_glass,0.85
+401b8edb-59a8-4a97-95c9-121160dc98d5,,furniture,armchair,,transitional,light grey/beige,fabric_and_wood,0.85
+19b8a945-80c7-4082-bb5c-c908e2337922,,furniture,bench,,transitional,dark brown,faux_leather_and_wood,0.85
+e7afb2da-cd4a-4855-87dd-715ca49f341d,,furniture,bed_frame,,industrial_farmhouse,black,metal,0.95
+dafb2203-8210-4c71-85b8-1e56035c9e1f,,furniture,mattress,,standard,white,fabric,0.9
+0f024dec-b208-4332-99e3-a2bb2d8613be,,decor,bedding_set,,modern,white_and_grey,cotton_linen_blend,0.95
+19d36c30-9c57-4786-b034-a18eb5149200,,furniture,nightstand,,traditional,dark_brown,wood,0.9
+5d395062-3fe6-4213-ab25-e95fd046735c,,furniture,bench,,transitional,dark_brown,faux_leather_wood,0.9
+2dad99ae-2065-4b00-a8ac-d796daedb994,,furniture,armchair,,transitional,light_grey_patterned,fabric_wood,0.9
+1bd33da5-56ec-46f8-a994-11b5c28224c2,,furniture,console_table,,glam_modern,silver_mirrored,wood_mirror_metal,0.9
+7cb7fed8-afca-4deb-95e3-dbe53d517245,,decor,wall_shelf,,industrial_modern,dark_wood_black,wood_metal,0.9
+b66f4e8c-c9c7-4a85-b73b-309c06eeae5c,,decor,wall_mirror,,modern,silver,glass_metal,0.9
+9e8b6b54-5840-4997-830d-17c1bddb818c,,decor,table_lamp,,transitional,white_shade_silver_base,fabric_metal,0.9
+d3b63b29-c3da-461b-99e2-bd719686cff3,,furniture,bed,,modern,white (bedding),fabric (bedding),0.95
+a5770ec1-e5c5-4ef2-a75f-4ff352a8e235,,furniture,dresser,,modern,black-brown,wood/MDF,0.9
+65a1d977-f320-49aa-94bd-a61eec50d848,,appliance,television,,modern,black,plastic/metal,0.9
+e1fe2fd2-daae-40f4-85a0-e77725c7621c,,furniture,accent_chair,,transitional,light beige/patterned,fabric,0.85
+a94f4c0b-9e4a-450e-95d7-4f4ea64ca28e,,furniture,side_table,,modern,dark metal,metal,0.8
+cf2d6d6f-7888-45df-9784-b7f667950ff9,,furniture,console_table,,modern,silver/clear,metal/glass,0.8
+0411e3a6-a167-4b6f-b8cb-58345501172b,,decor,artwork,,coastal,blue/white/brown,canvas/wood/glass,0.85
+89e457ef-f762-4984-9701-3f596b9c53d4,,decor,plant,,natural,green,plant/ceramic,0.8
+c83d5841-b96c-476e-9d04-773d3f02e50f,,furniture,bed,,modern,white_cream,fabric_wood,0.95
+9fa4d91d-83c5-4aa1-8859-5e1d049c637e,,furniture,dresser,,modern_minimalist,dark_brown_black,wood_composite,0.9
+767a95b5-d23c-4596-873a-d7318b560abc,,appliance,television,,modern,black,plastic_metal,0.9
+081a1586-2751-4d10-af8b-b3b715214d4a,,furniture,armchair,,transitional,grey_white_pattern,fabric_wood,0.85
+16dd9cc6-db18-4f55-98d6-af64252b6d05,,furniture,side_table,,modern,dark_metal,metal_glass,0.8
+f4cd3fd4-a53c-4a37-818a-461dc0b7b003,,furniture,console_table,,modern,silver_clear,metal_glass,0.85
+77272088-42e7-43d9-b96b-2b1c5dae79f3,,decor,artwork,,transitional,neutral_blue,canvas_wood_glass,0.9
+6da7756b-ae3b-4047-9e56-00d6e3c0ea5b,,decor,potted_plant,,natural,green,plant_ceramic,0.9
+e4b8a446-951f-46d4-8371-e85a6686512c,,furniture,bed_frame,,modern_farmhouse,black,metal,0.95
+0ee6c4cf-a403-44b9-b802-7a9ca6246271,,furniture,nightstand,,transitional,dark_brown,wood,0.95
+95c189ea-8416-4671-bc26-8a17adebd623,,furniture,bench,,modern_transitional,dark_gray,faux_leather|wood,0.9
+9244d35c-e6d1-480e-81e3-d1216facaeaa,,appliance,lamp,,transitional,silver|white,metal|fabric,0.95
+b71584bd-3b3b-4fa7-a839-750df9e057b3,,decor,wall_shelf,,modern,black,wood,0.9
+4bb7ccd4-9b1e-4356-8a90-769803b2a39f,,decor,curtains,,modern_transitional,light_gray,fabric,0.9
+8d072ec8-9e26-4ca7-b905-3a1d7da7e5bb,,decor,bedding_set,,modern_minimalist,white|light_gray|blue,cotton_blend,0.95
+8e8596db-35e1-4e69-acfa-b6c90ba4d37e,,furniture,double_vanity_cabinet,,shaker,dark brown,wood,0.95
+3fae61ae-48a7-4995-865f-e4a11d652e60,,decor,mirror,,framed_rectangular,dark brown,wood_frame_glass,0.95
+7baf88f9-a8a0-400e-bc9f-945c6fc74378,,appliance,shower_enclosure,,framed_glass,clear_glass_brushed_nickel_frame,glass_metal,0.9
+9364df5a-df25-4fb0-bad3-c321538f3161,,decor,orchid_plant,,natural,white_green,plant_ceramic_pot,0.9
+7d063e0a-ee12-4fd4-b87d-306d3660e0c0,,textile,bath_towel,,standard,white,cotton,0.85
+22cb33c5-49cf-4906-a5fc-1b989a0b1c43,,decor,artificial_orchid,,transitional,white_green,ceramic_plastic,0.9
+8cd27fd8-cccf-4122-ae96-aa942554cfc5,,decor,soap_dispenser,,modern,clear_silver,glass_metal,0.85
+6708a1e3-96e8-477f-afe6-9e4a430562c4,,textile,hand_towel,,plain,white,cotton,0.9
+78273326-f92c-4c6f-8400-d6256e85cb54,,decor,artificial_orchid,,modern,white_green,fabric_plastic_ceramic,0.95
+c128aaff-add3-4987-8ac9-d2df2a682c1a,,decor,vanity_tray,,modern,silver,metal,0.9
+1aa8ec21-959d-4b6d-8a3d-e39f11307f78,,textile,bath_towel,,standard,white,cotton,0.95
+d45ce75c-fa6e-42bf-955c-b492d852ee19,,furniture,bed_frame,,traditional_sleigh,dark brown,wood,0.95
+c4d66ff1-8abb-4e9c-ab63-e803ac5f3303,,furniture,dresser,,traditional,dark brown,wood,0.95
+556749cd-5a3c-4808-bac9-216a5e5db091,,furniture,nightstand,,transitional_console_table,light natural wood,wood,0.9
+b073cd47-fd59-458f-a2e1-7f985ad78cc5,,furniture,nightstand,,traditional_end_table,dark brown,wood,0.8
+9b108be6-641a-4395-8e7c-e66177edcf9c,,bedding,quilt_duvet,,floral_pattern,blue_white,fabric,0.9
+96f16229-2811-495d-860d-4407d36d66cf,,bedding,throw_pillows,,solid,light blue_grey,fabric,0.9
+7177834f-fff5-4d88-b531-1caf9aa7c60d,,decor,wall_art,,landscape_print,muted_greys_blues_tans,canvas_or_print,0.9
+71834640-8580-4214-ac4b-57d671442bd3,,window_treatment,cellular_blinds,,modern,white,fabric,0.85
+ab4aca54-f74f-41bd-9417-0b8647075780,,furniture,daybed,,traditional_cottage,white,metal,0.95
+c198b083-e16e-4d33-9449-4109a3f36e43,,furniture,side_table,,transitional,white,painted wood,0.9
+df35edac-2577-4fac-9c8f-09c27724a847,,furniture,armchair,,transitional_tufted,cream_striped,fabric_wood,0.95
+075756ef-6a9b-474d-8bd1-a1ac22da3d1b,,furniture,ottoman_pouf,,bohemian_transitional,light beige,knitted fabric,0.9
+4d2a711b-0c0f-4339-9b8f-a806be20e880,,appliance,table_lamp,,modern_minimalist,white,metal,0.85
+291f250a-ee02-499a-b843-2d3ddd8d151c,,decor,faux_plant,,natural,green,plastic_ceramic,0.9
+8312439c-9822-4282-b8ab-e1b6d56542a3,,decor,throw_pillows,,modern,white,fabric,0.9
+036191bc-c908-48bf-bc5b-fc6853bf54b0,,decor,throw_blanket,,casual,white,knitted fabric,0.9
+62074a6f-79cf-4c37-97bb-96742113cbfc,,decor,comforter_quilt,,modern,royal blue,fabric,0.9
+20c8116b-d421-4944-a3d3-0b0424ce6945,,decor,throw_pillow,,modern,light green,fabric,0.9
+b618c0ed-8eda-421e-a33f-ead5e0f4b62f,,window_treatment,roller_blind,,minimalist,white,fabric,0.8
+ee05cf0a-5337-46a5-b26a-49bad01b3e62,,window_treatment,horizontal_blinds,,traditional,white,faux_wood_or_vinyl,0.9
+40d0deee-01d5-4b6f-8cba-12ec7b804a40,,appliance,ceiling_fan,,transitional,brown_wood_blades_with_brushed_nickel_body,wood_and_metal,0.95
+a3817014-8dff-408e-bd92-43857cad0ff3,,furniture,base_cabinet,,transitional,dark_brown,wood,0.95
+ba552d14-f06c-43fe-88ca-132d889fff16,,decor,roller_blinds,,modern,white,fabric,0.8
+09c79acd-0374-441b-92fb-01deaae798e3,,furniture,armchair,,modern,off-white,fabric,0.9
+3b34b284-1bb4-49bb-8ed1-cdf612b9c1df,,furniture,sofa,,modern,off-white,fabric,0.9
+28cc28d0-187b-4a2c-9ab0-0c1784a88568,,furniture,coffee_table,,modern,black_and_clear,metal_and_glass,0.9
+b75d62da-d830-460a-852c-5b756a397204,,furniture,tv_stand,,modern_mid_century,white_and_light_wood,wood_and_engineered_wood,0.9
+3c83b660-3e93-4368-b8bd-af56704d5611,,appliance,television,,modern,black,plastic_and_metal,0.9
+18d4c1af-06d8-4f25-a249-f681d4607374,,appliance,mini_fridge_or_wine_cooler,,modern,stainless_steel,metal,0.8
+6a624353-cd54-4d64-9ce8-8d95764477b2,,decor,area_rug,,geometric_modern,multi-color_beige_blue_yellow_black,fabric,0.9
+db03a20f-cde3-4e4d-83d2-b1ffe2d05129,,decor,throw_pillow,,geometric_modern,black_and_white,fabric,0.9
+6f997ad3-ce3c-4ded-b5a6-81d6376f1611,,decor,potted_plant,,modern,green,ceramic_and_plant,0.9
+3d6ea0b2-1cc2-4854-aa8d-6a732761889a,,decor,wine_bottles,,standard,various,glass,0.9
+f69c41c7-121d-4480-a4d2-e11252c57a66,,furniture,armchair,,transitional,light_grey,fabric,0.8
+99b72dca-868e-42ec-a8aa-70bde16cde85,,furniture,bed_frame,,modern,dark_wood,wood,0.75
+319da84e-a953-4c0a-81ad-9963b89d835f,,decor,wall_art,,abstract,multi-color,canvas,0.7
+d25ce852-a401-4655-9327-a74bd56357e6,,furniture,dresser,,modern,dark_wood,wood,0.75
+6631e4ec-6701-4872-9452-a41aac4821e4,,furniture,armchair,,transitional,grey,fabric,0.7
+a7d49255-d707-426b-ac6e-070679eda701,,decor,curtains,,modern,grey,fabric,0.7
+6b04e47e-2bf3-4ea4-b502-762883b2ec12,,furniture,vanity_cabinet,,shaker,dark_gray,painted_wood_or_MDF,0.95
+65a05e5d-b858-47d6-9127-1b16276e5786,,decor,mirror,,frameless,clear,glass,0.9
+a4d527ea-2ed0-4eac-a017-7cffb1141b87,,decor,potted_plant,,modern,green_and_white,ceramic_and_plant,0.9
+069f0e1c-2cb4-4955-8a46-9c5007f6dec6,,decor,framed_artwork,,abstract,white_frame_with_muted_tones,wood_frame_and_paper,0.85
+c98006ad-f3fd-4c01-8569-04c8f7800a9f,,decor,soap_dispenser,,modern,white_or_cream,ceramic_or_glass,0.9
+81be170b-d217-45b3-a95a-bd43d5e37394,,furniture,vanity_cabinet,,shaker,dark_gray_charcoal,painted_wood_MDF,0.9
+659ff4ea-7d74-485d-8449-6563b3589b72,,decor,mirror,,frameless,clear,glass,1.0
+ab28b538-b8b2-473b-bae4-8c440b3a3f03,,decor,potted_plant,,natural,green,ceramic_plant,0.9
+97607dfb-58a3-4766-9b1a-4337d8372c21,,decor,framed_art,,contemporary,white_frame_multi_color_art,wood_paper_glass,0.9
+8bbc750f-833b-42ad-b1cd-11cebedcc0a2,,decor,soap_dispenser,,modern,white,ceramic_plastic,0.9
+94ac10a5-03e5-4900-8232-6b1fcfe1adbf,,furniture,dining_table,,transitional,dark_brown,wood,0.9
+efaac4f2-7df3-43e5-9518-a29f8008c8c2,,furniture,dining_chair,,transitional,dark_brown,wood,0.9
+b0ab3561-ecfa-469c-9412-ad64eded0983,,furniture,recliner_sofa,,transitional,brown,faux_leather,0.85
+1483db16-3ed6-4a18-85a4-7a778d962f53,,furniture,office_desk,,modern,white,MDF_metal,0.8
+879b5700-f10a-4cbb-a7a0-e23dd4cc6819,,furniture,office_chair,,modern_ergonomic,black,fabric_plastic_metal,0.85
+e11984e7-6fba-41ef-be2e-832e3a94a9e1,,appliance,television,,modern,black,plastic_glass,0.9
+ea32a6cc-4021-4039-bcc6-45ec167592ab,,appliance,computer_monitor,,modern,black,plastic_glass,0.9
+e46b672a-991a-48e8-9a8d-474885301b31,,appliance,printer,,modern,white,plastic,0.8
+a58c3bb3-39b7-4aa5-83c7-b795d154ccf6,,furniture,storage_drawer_unit,,modern,white,MDF_laminate,0.85
+817b8d18-b97d-461f-9a14-ed5815d0fa8c,,furniture,coffee_table,,modern,white_silver,MDF_metal,0.9
+3c053574-497a-4739-8956-95a1e568561e,,decor,area_rug,,modern_geometric,white_grey,fabric,0.85
+1c21b226-08ab-42a3-8e87-128901875fcc,,decor,potted_plant,,natural,green,plant_ceramic,0.9
+23f12913-b0aa-474c-8e86-b9fc9f2d9c45,,window_treatment,horizontal_blinds,,functional,white,plastic_metal,0.9
+e94ffd8f-f64e-4398-b944-e5d05618de58,,appliance,refrigerator,,modern,stainless_steel,metal,0.95
+ab8d595e-1bb4-42eb-ab74-be75ddcce460,,appliance,range_oven,,modern,stainless_steel,metal,0.95
+bf83698f-22f4-4052-bb66-61f410dddfef,,appliance,microwave,,modern,stainless_steel,metal,0.95
+0b5e9ddc-009f-4d0d-9f01-46dccd33a81f,,appliance,dishwasher,,modern,stainless_steel,metal,0.95
+70ea3a94-c1e1-4051-bebb-fa1ca75077bb,,decor,window_blinds,,traditional,white,faux_wood,0.8
+204b88c8-6ce9-402c-affc-cf65210df258,,decor,area_rug,,modern_abstract,blue_gray_white,synthetic_fabric,0.9
+bf134af9-e499-4426-b485-f8f32fd01977,,furniture,mirror,,traditional_eclectic,dark_brown_black,wood_frame_glass,0.85
+625d4d5d-5689-40b8-9e7a-0842438b9778,,furniture,console_table,,transitional,dark_brown,wood_glass,0.9
+1bcd5e0d-511e-4bed-84b3-3f5a896337b2,,decor,vase,,modern_organic,white,ceramic,0.9
+d933ee55-0cc5-4a1c-b5b9-1b3f10c5ef00,,decor,faux_plant,,natural,green,plastic_fabric,0.8
+97c2d3df-eba0-4d02-8f4e-3c9f2f869c45,,decor,decorative_bowl,,modern_organic,silver_metallic,metal,0.85
+e35c65ef-70d4-4908-82cb-a849a9a9c834,,decor,decorative_beads,,modern,white,wood_ceramic,0.8
+f3033213-a70c-43d0-a583-0bd4daaad962,,appliance,HVAC_condenser_unit,,functional,grey,metal,0.8
+408e0d63-c469-4281-bde5-442dfb04768f,,furniture,patio_table_and_chairs,,modern_outdoor,dark_grey,metal_and_fabric,0.7
+5cdf833c-52eb-433e-ba80-ab1034b44c28,,outdoor_structure,shed,,traditional,grey_roof_green_walls,wood_and_metal,0.8
+1868d8dc-77ad-49c5-912f-71fd38b947cf,,recreational_equipment,trampoline,,standard_outdoor,black_and_blue,metal_and_fabric,0.7
+41da7e6c-8e88-4e16-a3c4-df621a7bdf0a,,appliance,hot_tub,,modern,white,acrylic_composite,0.6
+8283d3bb-5acd-45b7-8a43-94b6c165eea5,,furniture,futon_sofa_bed,,modern,dark_gray,fabric_upholstery_with_metal_frame,0.95
+02df533f-3834-4f1d-b6b0-8d0a0420011c,,decor,throw_pillow,,modern_textured,white,fabric,0.95
+65111611-caa5-4309-a566-bc1feba47463,,furniture,nightstand,,modern_minimalist,dark_brown,wood_composite_with_veneer,0.95
+ee21b7b8-7a1c-491c-a655-215eb6c0eb1d,,decor,artificial_potted_plant,,modern,green_and_white,plastic_plant_ceramic_pot,0.95
+7de4dd6f-87bd-4f8e-9d80-915e074b4cb9,,decor,artificial_potted_plant,,modern,green_and_white,plastic_plant_ceramic_pot,0.95
+b945bad4-eef1-4331-99b3-12195f0847b6,,decor,canvas_wall_art,,contemporary_seascape,blue_white_gray,canvas,0.95
+87d360e2-1dd0-474c-b7c6-415bf827ec1b,,decor,area_rug,,modern_geometric,gray_white,synthetic_fiber,0.95
+8653ae61-7195-437f-895b-38b366f545a0,,window_treatment,roller_blind,,modern_minimalist,white,fabric,0.9
+effa61a8-fd41-43bb-9159-d25b72d11053,,furniture,futon_sofa,,modern,dark_gray,fabric_and_metal,0.9
+a1b6cce6-29ce-4ea0-91af-a8ac0855fd6e,,furniture,nightstand,,modern,dark_brown,wood,0.9
+6152617a-cad5-4349-97f9-15182f70a913,,decor,area_rug,,geometric_modern,white_and_gray,fabric,0.85
+fd5b24ad-ebe4-4b2b-883b-1cb4b7ec1418,,decor,throw_pillow,,modern,white,fabric,0.9
+a3027387-91aa-4537-9821-61e7cf2d039d,,decor,wall_art,,abstract_landscape,blue_gray_white,canvas_and_wood,0.9
+6309c217-057b-4d42-aa7c-ddf44c1d81ca,,decor,faux_plant,,modern,green,plastic,0.8
+4c8d293f-594e-498b-a5d4-751175452657,,furniture,dining_table,,transitional,dark_brown,wood,0.9
+fb00b693-8d71-491f-a198-758a1c2da802,,furniture,dining_chair,,transitional,off-white_and_dark_brown,fabric_and_wood,0.9
+3d976cf6-d455-453f-a7dc-33da0bdb0f7c,,furniture,credenza,,transitional,dark_brown,wood,0.9
+abff28b8-83e5-47b2-831e-82af55266c3e,,decor,wall_art,,abstract_modern,white_grey_gold,canvas_and_metal_frame,0.9
+9d39d229-cfa1-4164-b0ea-ff89809ff8b9,,decor,wall_art,,abstract_modern,white_grey_blue,canvas_and_metal_frame,0.9
+9bf8bcbc-a4de-453e-8d4c-226413706dc8,,decor,wall_mirror,,transitional,dark_brown_frame,glass_and_wood,0.8
+aa902072-498f-4da8-993b-32294bc38815,,decor,table_runner,,simple,off-white,fabric,0.9
+5739e9bf-a1aa-4324-bf47-7930893d6a39,,decor,candlesticks,,modern,dark_brown/black,metal/wood,0.8
+e8b9aa82-4cd5-498f-af29-bef04335cb59,,decor,vase,,modern,teal,ceramic/glass,0.9
+170a3e5b-f42a-49d9-bd79-2e90a6eb3b20,,decor,faux_greenery,,natural,green,plastic/silk,0.8
+ce1f0273-f564-4a70-8d11-a952299d2f90,,furniture,dining_table,,transitional,medium_brown,wood,0.9
+0f5799a2-6e02-4d61-a45d-965e2aa583c8,,furniture,dining_chair,,transitional,off_white,fabric_and_wood,0.9
+6d6e29af-da72-4fd5-9504-f203be2f1dde,,furniture,buffet_cabinet,,transitional,dark_brown,wood,0.85
+a446b282-6ebe-4714-aca3-fc5d564425bc,,decor,mirror,,transitional,silver,glass_and_metal,0.9
+26721416-8f7e-452b-b54c-52afe31190af,,decor,artwork,,abstract_modern,white_grey_brown_gold,canvas_and_wood,0.9
+67797f19-5f5a-4a23-bbf1-eece5103ce00,,decor,artwork,,abstract_modern,white_blue_brown_gold,canvas_and_wood,0.9
+9f620e0b-1c09-4f12-a8ec-3c80f5ab363d,,decor,vase,,modern,teal,ceramic,0.8
+ac63d7ae-06a9-433c-b914-de8f3439c5b7,,decor,table_runner,,modern,white,fabric,0.8
+aebb3467-3c31-429d-931b-984395eb2caa,,decor,candle_holders,,modern,dark_brown_black,wood_and_metal,0.8
+c648c71d-9a88-4a03-8922-e310ccd3e7e1,,decor,artificial_foliage,,natural,green_brown,plastic_fabric,0.8
+2a67203a-42d5-4f44-995e-991ed98fc093,,furniture,dining_table,,transitional,dark_brown,wood,0.95
+a94ec126-ab5f-42ef-b45d-d2a0f377c923,,furniture,dining_chair,,transitional,off_white,upholstery_wood,0.95
+15688769-0414-4e0a-bf1a-41a471bb1749,,furniture,sideboard,,transitional,dark_brown,wood,0.95
+feabb098-7383-4998-a0e8-23d3076ef27b,,decor,mirror,,modern,silver,glass_metal,0.9
+cd13f97e-bbbb-4f55-a124-a993e8aa76c3,,decor,artwork,,abstract_modern,multi-color_neutral,canvas_wood_metal,0.9
+2a1071a2-cf09-4ee1-89c6-62e1119732ce,,decor,vase,,decorative,teal,ceramic_or_glass,0.85
+758f75e8-3722-468a-bcea-9d52f5a74a11,,decor,candle_holders,,modern_transitional,dark_brown_black,wood_metal,0.85
+89dad3e1-b46f-4b41-bad8-de5f8dc28b42,,decor,table_runner,,textured,off_white_beige,fabric,0.85
+223eb036-0e8b-4f9c-9f90-91f29f7a6cb6,,furniture,sofa,,transitional,dark_grey_brown,fabric,0.9
+aeef1d9a-fa42-4c44-a82b-0a9d7a9c7448,,furniture,armchair,,transitional,light_beige,fabric,0.9
+ea282919-190e-4ea9-a61d-2c4158bbc7e2,,furniture,dining_table,,modern,dark_brown_base_clear_top,wood_and_glass,0.9
+0c248500-a49c-4cff-b309-8e969dab3013,,furniture,dining_chair,,modern,light_wood_frame_light_grey_upholstery,wood_and_fabric,0.9
+7513eedd-f773-4131-a0c3-23f1800c0733,,furniture,coffee_table,,transitional,dark_brown,wood,0.85
+cdc7a3f1-724b-497f-81e1-9d63488a9c64,,appliance,television,,modern,black,plastic_metal_glass,0.9
+22a79138-4318-4bfb-845e-b7a95d9cd42a,,furniture,media_console_with_fireplace,,transitional,dark_brown,wood_veneer,0.9
+71870c50-6544-4c28-b108-104eb4d58ce8,,decor,area_rug,,transitional,grey_blue_pattern,synthetic_or_wool_blend,0.85
+aa0ce51c-9f26-4edf-b98a-21120b92ea65,,decor,throw_blanket,,casual,light_grey,knit_fabric,0.9
+4494537a-417f-46c2-bf51-dc2733f3016d,,decor,decorative_pillows,,modern,white_grey,fabric,0.9
+c95b16b2-2e5e-4c15-b717-89529f7d298e,,lighting,table_lamp,,modern,white_shade_silver_base,fabric_metal,0.85
+bf2bdb1b-22b8-4320-960e-bba9701c5dbc,,decor,potted_plant,,natural,green,plant_ceramic,0.9
+c6e3f781-83cb-4517-bbf7-c3cf85be1b9e,,decor,wall_art,,abstract,monochromatic,paper_wood_glass,0.8
+e82061e1-cd15-4a6f-ad0d-f9575ec6eb38,,furniture,dining_table,,modern,clear_glass_top_with_black_base,glass_top_with_metal_or_wood_base,0.9
+767e005b-2010-47ef-9787-9435ee0dd621,,furniture,dining_chair,,modern,light_grey_fabric_with_light_wood,fabric_and_wood,0.9
+d02fd006-db0c-4c94-a5f7-a588661cadde,,decor,potted_plant,,natural,green,plant_and_ceramic_pot,0.85
+0c4b4d00-75ae-47a3-856c-ba8dfe8c16ee,,decor,wall_art,,minimalist,black_frame_with_light_artwork,wood_frame_and_paper,0.8
+b9ce83ad-8e40-4117-b984-bf6634a26055,,decor,area_rug,,contemporary,grey,woven_fabric,0.8
+16e668b6-03c5-4b1e-b868-c4cdd4f82aa1,,decor,plant_stand,,modern_industrial,black_and_natural_wood,metal_and_wood,0.85
+babfaa5e-886a-4fdb-8e5b-3966c08dd58e,,furniture,dining_table,,modern_contemporary,clear_glass_top_with_dark_brown_black_base,glass_and_wood,0.95
+f3cb6bc4-a8c2-4e9c-87f9-c1adb19852f3,,furniture,dining_chair,,modern_contemporary,light_grey_fabric_with_natural_wood_frame,fabric_and_wood,0.95
+29831729-5d1a-4c25-934e-a2c43647e25f,,decor,area_rug,,modern,light_grey,woven_fabric,0.85
+261360a4-0f3e-4dfd-9faa-327dccf19a34,,decor,potted_plant,,natural,green,plant_and_ceramic_pot,0.9
+ab04a120-59fe-4c6d-aab1-cff8d9ac6d86,,decor,plant_stand,,industrial_modern,black,metal_and_wood,0.9
+8004a820-6669-4e2e-878a-c61df7fafd24,,decor,wall_art,,modern,black_frame_with_monochrome_print,wood_or_metal_frame_and_paper_print,0.9
+5a2e858d-ec29-407e-a4d5-1c5e729afab0,,decor,table_centerpiece,,minimalist,green_and_white,plant_and_ceramic,0.85
+f4f197b1-f350-4cce-b514-9ef4c7b51939,,furniture,console_table,,transitional,dark_brown,wood_metal_glass,0.9
+58a4c4d1-edbb-45b4-aae7-7b0cb46a3ccd,,decor,vase,,modern,white,ceramic,0.9
+5b1140a0-18d0-4df8-8063-6c7942d43581,,decor,artificial_plant,,natural,green,plastic_fabric,0.85
+c47a536d-70de-4c92-a6e4-ac13d49763e3,,decor,wall_art,,abstract,black_white_grey,canvas_wood_frame,0.9
+cc63642c-9266-4798-8e39-e41d73aafdb0,,decor,decorative_bowl,,modern,silver,metal,0.85
+5100a8cd-1b4a-467d-98df-73c2adf2ab72,,decor,decorative_beads,,bohemian,white,wood,0.8
+a400b8e2-82ff-41f5-bb04-976f441b3a95,,appliance,smoke_detector_carbon_monoxide_detector,,modern,white,plastic,0.7
+26ab8545-c8b3-4b14-9254-4b42a7d34f41,,furniture,sofa,,modern,grey,fabric,0.75
+cd3826a4-c38b-43b5-a784-9f2fbf97a43f,,furniture,armchair,,transitional_wingback,beige_and_grey_pattern,fabric_upholstery_and_wood_legs,0.95
+67546ea4-e027-49d6-92d2-053da1c94917,,furniture,side_table,,modern_minimalist,black,metal_frame_and_wood/laminate_top,0.9
+4cca7658-ea96-4eaf-8234-ba8df93398ee,,decor,throw_blanket,,modern,cream/white,knit_fabric,0.9
+30453e76-63d7-4659-b369-7dfb48fee631,,decor,artificial_plant,,tropical,green,plastic/fabric,0.9
+a439ead9-e75d-440d-a208-f80a0047a655,,decor,abstract_wall_art,,modern,muted_blue/grey/white,canvas,0.9
+3d67d6cf-d26a-468b-8b3b-b37894512a29,,decor,potted_plant,,modern,green,ceramic_pot_and_live_plant,0.85
+60d6dc91-67dd-4de6-9f71-38b8d55276fb,,decor,book,,,dark,paper,0.8
+ce20a2aa-2cd6-411d-a4ed-fdb772ffb7e9,,appliance,bathtub,,modern,white,acrylic,0.95
+40c05442-77a4-4faf-9bf0-36cb14b4bd0e,,decor,towel,,plain,white,cotton,0.9
+77af689a-4ed6-4582-bf10-2cf37a07bd7a,,decor,potted_plant,,natural,green,"plant, ceramic",0.8
+9721960d-748a-4bca-b726-344eed67f3d3,,decor,decorative_bowl,,modern,lime_green,ceramic,0.75
+68e148d5-ac31-4f79-82f5-4336485b7aae,,storage,shower_caddy,,functional,clear,plastic,0.7
+77499ee6-e2e2-47d2-9a49-acd473b1bf08,,appliance,ceiling_fan,,transitional,brown_and_brushed_nickel,wood_and_metal,0.9
+e4250c53-d539-4439-9c38-ccfa4c42c3c2,,decor,horizontal_blinds,,modern,white,vinyl_or_aluminum,0.9
+f380c24f-32c2-4471-b769-0ff28f2a9917,,furniture,vanity_cabinet,,modern_shaker,white,wood_mdf,0.9
+6df64371-9517-44da-8b19-ec2674553b5d,,decor,shower_curtain,,casual_modern,grey_with_white_stripes,fabric,0.95
+00758054-ea42-4cea-8f76-c4460d35c4ab,,decor,mirror,,frameless_modern,silver,glass,0.8
+43568ace-19b6-492a-9337-07e634da9d34,,decor,artificial_plant,,minimalist,green,plastic_ceramic,0.9
+6c3d2d18-fb05-4fa6-83dd-ca2ebd3de358,,decor,soap_dispenser,,modern,clear_black,glass_plastic_metal,0.9
+a7e332ed-7e98-4bbf-8ac1-c0f0ae4c5677,,decor,cotton_ball_holder,,simple,clear_silver,glass_metal,0.9
+50d343aa-32fe-4614-ba7e-71c77e3633e5,,decor,hand_towel,,plain,white,cotton,0.8
+b0d6f142-c617-45d2-85a4-e27414c77267,,decor,bath_mat,,plain,white,fabric,0.7
+82bd7e3c-a738-43d8-9ef2-07e3d6ed1a25,,decor,framed_artwork,,botanical_modern,white_green_blue,wood_paper_glass,0.8
+375c2e79-4d75-499f-a4e6-0d11d378a658,,appliance,front_load_washer,SAMSUNG,modern,dark_gray,metal,0.95
+579c7423-69e6-4e74-9a4f-5fee0558265b,,appliance,front_load_dryer,SAMSUNG,modern,dark_gray,metal,0.95
+389a4285-d580-4a8a-b1e9-e026ec41fd40,,furniture,base_cabinet,,shaker,white,wood_or_MDF,0.9
+a104795d-695b-45ab-b641-b9cc5cb14112,,furniture,wall_cabinets,,shaker,white,wood_or_MDF,0.9
+7e1b9c24-9534-402f-9498-5e34441564c3,,decor,area_rug,,transitional_floral,multi-color_green_beige_brown,fabric,0.75
+757024a2-40a2-4dd7-b7e0-aa56c7186621,,appliance,patio_heater,,modern,dark_grey,metal_and_plastic,0.9
+637b5dc9-12dd-42d1-ae5b-475c48b69b82,,furniture,patio_dining_table,,modern,dark_grey_frame_clear_glass_top,metal_and_glass,0.9
+f42fbed7-22f9-4b73-84d6-ae891fd6ccd8,,furniture,patio_dining_chair,,modern,dark_grey_frame_tan_mesh,metal_and_fabric,0.9
+27bbe413-4f3f-4ce6-9fbd-530184544a7c,,decor,decorative_pillow,,tropical_botanical,green_and_white,fabric,0.9
+f6aa7e27-edd7-4201-b725-fe661b9d72d0,,decor,flower_arrangement,,natural,yellow_and_purple,natural_plants,0.9
+506b0797-85cd-465b-bcd6-9553fc21978a,,appliance,bbq_grill,,modern,dark_grey_and_black,metal_and_plastic,0.8
+d750912a-b5e1-4453-bac0-16ea44c00af9,,vehicle,sedan,N/A,modern,white,metal,0.9
+a71c70e1-a2da-4b8a-9633-09245d038236,,vehicle,sedan,N/A,modern,red,metal,0.9
+53235966-7245-4325-a2db-dba2a88ff70d,,vehicle,sedan,N/A,modern,black,metal,0.9
+a799f74b-eec4-44a6-ae14-345ed1398b43,,outdoor_furniture,patio_chairs_table,N/A,modern,grey,metal_fabric,0.6
+e60166ab-12c8-492b-9c5e-4882a29a4d46,,recreational_equipment,soccer_goal,N/A,N/A,white,metal,0.7
+834a6ff1-6a4f-4115-9186-7ee085c5b7c9,,vehicle,sedan,,modern,white,metal,0.9
+15e98c1b-33e8-4f2a-a37c-423438c86bfd,,vehicle,sedan,,modern,black,metal,0.9
+e553c164-f12e-48ab-85bd-e17671fd48e0,,vehicle,SUV,,modern,red,metal,0.9
+2ac6fd24-c06e-4279-a320-f2e5a53d1d40,,landscaping_element,potted_plant,,decorative,green,plant,0.8
+6b9ffaa9-ae1f-49ed-b3da-9698b0509dd3,,utility,trash_bin,,standard,dark_gray,plastic,0.7
+0977b317-c12a-4e85-be07-65cd5e8cd847,,furniture,console_table,,transitional,dark_brown_espresso,wood,0.9
+81ecd4d9-3378-4b34-a122-8a6bba18f042,,decor,framed_art,,modern_botanical,white_grey_black,paper_glass_wood,0.9
+75289ae5-5255-4c2a-b5d6-8a8e92d5cb40,,decor,sculpture,,modern_eclectic,gold,metal,0.85
+b8c50f6c-b8c5-434e-9747-e7f8e5c7ad2d,,decor,vase,,modern,white,ceramic,0.85
+e2a4e50b-efcf-41f5-a0a5-e6749bdf14ab,,decor,artificial_plant,,natural,green,plastic_fabric,0.8
+ae27359f-15fa-4f8b-9500-0318d2b86939,,decor,decorative_bowl,,modern,gold,metal,0.85
+0d451f41-e8b7-4c74-85ed-6ea13d798e5f,,decor,books,,various,various,paper,0.75
+a2532253-ae42-4289-95e8-3c4918fb71cb,,appliance,electrical_outlet,,standard,white,plastic,0.9
+7bde66c2-5e82-4f73-aa62-abb34395d7c5,,furniture,sofa,,modern,dark_gray,fabric,0.8
+2df73074-a724-4480-ae02-4ae864c94511,,decor,throw_pillow,,modern,cream_beige,fabric,0.8
+181f8418-d7d6-4260-8dd7-c80f92280c67,,decor,area_rug,,modern,light_beige,fabric,0.75
+9b51389d-e941-4eb5-be1e-517ffd81d58d,,landscaping,arborvitae_hedge,N/A,natural_formal,dark_green,plant,0.95
+75f36ea9-6d27-4606-ada8-1061d78e5fdf,,landscaping,various_shrubs,N/A,natural,light_green_yellow_green,plant,0.9
+94ef42af-6348-424b-941c-6430ebdb0a0b,,landscaping_accent,river_rock_border,N/A,natural,grey_brown,natural_stone,0.9
+c1c86a2d-961e-4f14-beb0-2a5d01bdc772,,security_barrier,decorative_metal_fence,N/A,traditional,black,metal,0.9
+4e7b795f-02e2-4f20-befc-40e27ccac3cb,,furniture,sofa,,modern_transitional,dark_grey,fabric_blend,0.9
+4cfebec6-63d9-4d9e-8fe1-f1195ad68eca,,furniture,armchair,,modern_transitional,light_beige_geometric_pattern,fabric_wood,0.9
+5f3934e6-d9a7-4ce6-bcf7-4af442f378ec,,furniture,coffee_table,,modern_transitional,dark_brown,wood,0.9
+55fdebe4-2dd1-49db-b3ed-0f9a3fea9f2e,,furniture,TV_console_fireplace_unit,,modern_transitional,dark_brown,wood,0.9
+5f3c5895-c9ca-4b55-9648-f2f0960eb3d4,,appliance,television,,modern,black,plastic_metal_glass,0.9
+9b932c58-cd6a-40c7-8f1c-3d1ec6e7e0b9,,decor,floor_lamp,,modern,white_shade_silver_base,metal_fabric,0.9
+6d91da05-8c7a-4b3b-95ec-e2929e70a5c0,,decor,wall_mirror,,modern_transitional,dark_brown_frame,wood_glass,0.9
+4779be06-5145-42ba-96c9-97af579e0c11,,decor,area_rug,,traditional_persian_pattern,cream_multi-color,fabric_blend,0.9
+743ba682-a063-4b1a-aa18-99d4870182bd,,decor,throw_pillows,,modern_minimalist,white_cream,fabric,0.9
+882516a9-7dc7-4c20-962c-eea63f7cfcf0,,decor,throw_blankets,,knitted_textured,light_grey_cream,fabric,0.9
+11c6e074-6be7-4618-a6f4-796ecbb72776,,decor,potted_plants,,natural,green,plant_ceramic_plastic,0.9
+34e5f801-7ea6-4be1-aabd-4a13e5ddd88b,,appliance,refrigerator,,modern,stainless steel,metal,0.9
+555ce14c-ddd6-4da4-92a6-514d15f8a6ff,,appliance,range_hood,,modern,stainless steel,metal,1.0
+6b9ca903-324b-4c61-8a1c-407a33d9ff88,,appliance,gas_cooktop,,modern,black,cast iron/metal,0.9
+30251caf-0534-45e8-a8ba-e499ffa2aaaf,,furniture,counter_stool,,transitional,dark brown/black,faux leather/metal,1.0
+72561d41-f3b0-4cbf-acc1-48bf37082c77,,furniture,dining_chair,,traditional/transitional,black,faux leather/wood,0.9
+fb8e5cd8-27c2-4f11-acc6-80724e154df9,,decor,wall_clock,,traditional/classic,black/white,metal/plastic,1.0
+a131f138-d81c-4b4d-8587-f2fc736287f5,,window_treatment,cellular_blinds,,modern,grey,fabric,1.0
+a368917d-d9ac-43b7-909a-bc7f2489eba3,,decor,area_rug,,casual,grey,fabric/synthetic,0.8

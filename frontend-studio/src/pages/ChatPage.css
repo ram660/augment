@@ -1,0 +1,142 @@
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  background: #f9fafb;
+}
+
+.chat-header {
+  background: white;
+  padding: 24px 40px;
+  border-bottom: 2px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.chat-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.8rem;
+  color: #1f2937;
+}
+
+.chat-header p {
+  margin: 0;
+  font-size: 1rem;
+  color: #6b7280;
+}
+
+.chat-content {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 0;
+  overflow: hidden;
+}
+
+.chat-container {
+  background: white;
+  border-right: 2px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-sidebar {
+  background: #f9fafb;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  color: #1f2937;
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestion-btn {
+  background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.suggestion-btn:hover {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  transform: translateX(4px);
+}
+
+.capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.capability-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.capability-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.capability-item strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.capability-item p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .chat-content {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-sidebar {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-header {
+    padding: 16px 20px;
+  }
+
+  .chat-header h2 {
+    font-size: 1.4rem;
+  }
+
+  .chat-header p {
+    font-size: 0.9rem;
+  }
+}
+

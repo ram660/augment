@@ -1,0 +1,2903 @@
+{
+  "schema_version": "2.0",
+  "image_info": {
+    "width_px": 1000,
+    "height_px": 987,
+    "orientation_deg": 0
+  },
+  "units": {
+    "system": "imperial",
+    "length_unit": "ft",
+    "area_unit": "sqft",
+    "scale_text": null
+  },
+  "floor_plan_type": "multi_floor",
+  "total_floors_detected": 3,
+  "floors": [
+    {
+      "floor_number": 0,
+      "floor_name": "Lower Floor",
+      "floor_type": "basement",
+      "label_detected": "LOWER FLOOR",
+      "detection_confidence": 0.98,
+      "detection_reasoning": "Explicit 'LOWER FLOOR' label; typical basement features like patio access and flex/storage rooms.",
+      "section_bbox": {
+        "x_min": 50,
+        "y_min": 60,
+        "x_max": 360,
+        "y_max": 820
+      },
+      "pixel_to_unit": {
+        "pixels_per_foot": 24.0,
+        "pixels_per_meter": 78.74,
+        "inferred_from": "door|tub|room_dimensions"
+      },
+      "walls": [
+        {
+          "polyline": [
+            [
+              65,
+              765
+            ],
+            [
+              65,
+              345
+            ],
+            [
+              105,
+              345
+            ],
+            [
+              105,
+              170
+            ],
+            [
+              340,
+              170
+            ],
+            [
+              340,
+              650
+            ],
+            [
+              305,
+              650
+            ],
+            [
+              305,
+              765
+            ],
+            [
+              65,
+              765
+            ]
+          ],
+          "thickness": {
+            "pixels": 11.0,
+            "value": 0.45,
+            "unit": "ft"
+          },
+          "type": "exterior"
+        },
+        {
+          "polyline": [
+            [
+              105,
+              305
+            ],
+            [
+              105,
+              345
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              105,
+              305
+            ],
+            [
+              225,
+              305
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              225,
+              305
+            ],
+            [
+              225,
+              175
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              105,
+              650
+            ],
+            [
+              305,
+              650
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        }
+      ],
+      "doors": [
+        {
+          "type": "interior",
+          "swing": "right",
+          "width": {
+            "value": 2.67,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 232,
+            "y": 665
+          },
+          "connects": [
+            "L_FLEX_ROOM_1",
+            "L_HALLWAY_1"
+          ]
+        },
+        {
+          "type": "interior",
+          "swing": "left",
+          "width": {
+            "value": 2.5,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 105,
+            "y": 625
+          },
+          "connects": [
+            "L_BEDROOM_1",
+            "L_BATH_1"
+          ]
+        },
+        {
+          "type": "sliding",
+          "swing": "none",
+          "width": {
+            "value": 6.0,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 235,
+            "y": 170
+          },
+          "connects": [
+            "L_LIVING_ROOM_1",
+            "L_PATIO_1"
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "type": "standard",
+          "span": {
+            "value": 5.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              160,
+              170
+            ],
+            [
+              280,
+              170
+            ]
+          ],
+          "room": "L_LIVING_ROOM_1"
+        },
+        {
+          "type": "standard",
+          "span": {
+            "value": 4.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              65,
+              410
+            ],
+            [
+              65,
+              470
+            ]
+          ],
+          "room": "L_KITCHEN_1"
+        }
+      ],
+      "stairs": [
+        {
+          "type": "straight",
+          "direction": "up",
+          "connects_to_floor": 1,
+          "polyline": [
+            [
+              270,
+              680
+            ],
+            [
+              270,
+              755
+            ],
+            [
+              240,
+              755
+            ],
+            [
+              240,
+              680
+            ]
+          ],
+          "tread_count": 13
+        },
+        {
+          "type": "straight",
+          "direction": "up",
+          "connects_to_floor": 1,
+          "polyline": [
+            [
+              130,
+              170
+            ],
+            [
+              130,
+              210
+            ],
+            [
+              160,
+              210
+            ],
+            [
+              160,
+              170
+            ]
+          ],
+          "tread_count": 3
+        }
+      ],
+      "rooms": [
+        {
+          "id": "L_KITCHEN_1",
+          "room_type": "kitchen",
+          "name": "Kitchen",
+          "label_ocr": "KITCHEN 10'-4\" X 9'-0\"",
+          "polygon": [
+            [
+              65,
+              475
+            ],
+            [
+              65,
+              345
+            ],
+            [
+              105,
+              345
+            ],
+            [
+              105,
+              305
+            ],
+            [
+              220,
+              305
+            ],
+            [
+              220,
+              475
+            ]
+          ],
+          "centroid": {
+            "x": 142,
+            "y": 390
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 10.33,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 9.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 38.66,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 92.97,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "sink",
+            "stove",
+            "refrigerator",
+            "dishwasher"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "L_LIVING_ROOM_1",
+          "room_type": "living_room",
+          "name": "Living Room",
+          "label_ocr": "LIVING ROOM 19'-8\" X 14'-3\"",
+          "polygon": [
+            [
+              225,
+              305
+            ],
+            [
+              225,
+              170
+            ],
+            [
+              340,
+              170
+            ],
+            [
+              340,
+              305
+            ],
+            [
+              290,
+              305
+            ],
+            [
+              290,
+              345
+            ],
+            [
+              225,
+              345
+            ]
+          ],
+          "centroid": {
+            "x": 282,
+            "y": 237
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 19.67,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 14.25,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 67.84,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 280.29,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "fireplace"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "L_DINING_AREA_1",
+          "room_type": "dining_room",
+          "name": "Dining Area",
+          "label_ocr": "DINING AREA 12'-6\" X 10'-0\"",
+          "polygon": [
+            [
+              220,
+              305
+            ],
+            [
+              220,
+              475
+            ],
+            [
+              340,
+              475
+            ],
+            [
+              340,
+              345
+            ],
+            [
+              290,
+              345
+            ],
+            [
+              290,
+              305
+            ]
+          ],
+          "centroid": {
+            "x": 280,
+            "y": 390
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 12.5,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 10.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 45.0,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 125.0,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [],
+          "confidence": 0.9
+        },
+        {
+          "id": "L_BEDROOM_1",
+          "room_type": "bedroom",
+          "name": "Bedroom 1",
+          "label_ocr": "BEDROOM 13'-7\" X 10'-0\"",
+          "polygon": [
+            [
+              65,
+              650
+            ],
+            [
+              65,
+              500
+            ],
+            [
+              205,
+              500
+            ],
+            [
+              205,
+              650
+            ]
+          ],
+          "centroid": {
+            "x": 135,
+            "y": 575
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 13.58,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 10.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 47.16,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 135.8,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "closet"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "L_BATH_1",
+          "room_type": "bathroom",
+          "name": "Bathroom 1",
+          "label_ocr": null,
+          "polygon": [
+            [
+              65,
+              500
+            ],
+            [
+              65,
+              475
+            ],
+            [
+              105,
+              475
+            ],
+            [
+              105,
+              500
+            ]
+          ],
+          "centroid": {
+            "x": 85,
+            "y": 487
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 3.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 2.08,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 10.82,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 6.93,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "toilet",
+            "sink",
+            "shower"
+          ],
+          "confidence": 0.8
+        },
+        {
+          "id": "L_STORAGE_1",
+          "room_type": "storage_room",
+          "name": "Storage Room",
+          "label_ocr": "STORAGE ROOM 7'-3\" X 7'-1\"",
+          "polygon": [
+            [
+              205,
+              500
+            ],
+            [
+              205,
+              595
+            ],
+            [
+              255,
+              595
+            ],
+            [
+              255,
+              500
+            ]
+          ],
+          "centroid": {
+            "x": 230,
+            "y": 547
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 7.25,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 7.08,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 28.66,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 51.34,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [],
+          "confidence": 0.9
+        },
+        {
+          "id": "L_FLEX_ROOM_1",
+          "room_type": "multi_purpose_room",
+          "name": "Flex Room",
+          "label_ocr": "FLEX ROOM 15'-6\" X 12'-0\"",
+          "polygon": [
+            [
+              205,
+              650
+            ],
+            [
+              205,
+              765
+            ],
+            [
+              305,
+              765
+            ],
+            [
+              305,
+              650
+            ]
+          ],
+          "centroid": {
+            "x": 255,
+            "y": 707
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 15.5,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 12.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 55.0,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 186.0,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "stairs_up"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "L_HALLWAY_1",
+          "room_type": "hallway",
+          "name": "Hallway",
+          "label_ocr": null,
+          "polygon": [
+            [
+              205,
+              595
+            ],
+            [
+              205,
+              650
+            ],
+            [
+              225,
+              650
+            ],
+            [
+              225,
+              680
+            ],
+            [
+              240,
+              680
+            ],
+            [
+              240,
+              595
+            ]
+          ],
+          "centroid": {
+            "x": 222,
+            "y": 637
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 3.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 2.29,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 11.24,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 7.63,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [],
+          "confidence": 0.8
+        },
+        {
+          "id": "L_PATIO_1",
+          "room_type": "patio",
+          "name": "Patio",
+          "label_ocr": "PATIO 15'-6\" X 10'-3\"",
+          "polygon": [
+            [
+              65,
+              170
+            ],
+            [
+              65,
+              120
+            ],
+            [
+              105,
+              120
+            ],
+            [
+              105,
+              170
+            ]
+          ],
+          "centroid": {
+            "x": 85,
+            "y": 145
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 15.5,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 10.25,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 51.5,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 158.88,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "outdoor",
+            "stairs_up"
+          ],
+          "confidence": 0.9
+        }
+      ],
+      "texts": [
+        {
+          "text": "LOWER FLOOR",
+          "bbox": {
+            "x_min": 100,
+            "y_min": 100,
+            "x_max": 220,
+            "y_max": 115
+          },
+          "category": "floor_label"
+        },
+        {
+          "text": "1312 SQ. FT.",
+          "bbox": {
+            "x_min": 120,
+            "y_min": 120,
+            "x_max": 200,
+            "y_max": 135
+          },
+          "category": "dimension"
+        },
+        {
+          "text": "7'-8\" CEILING HEIGHTS",
+          "bbox": {
+            "x_min": 90,
+            "y_min": 140,
+            "x_max": 230,
+            "y_max": 150
+          },
+          "category": "note"
+        },
+        {
+          "text": "KITCHEN 10'-4\" X 9'-0\"",
+          "bbox": {
+            "x_min": 100,
+            "y_min": 355,
+            "x_max": 210,
+            "y_max": 370
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "LIVING ROOM 19'-8\" X 14'-3\"",
+          "bbox": {
+            "x_min": 230,
+            "y_min": 250,
+            "x_max": 330,
+            "y_max": 270
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "BEDROOM 13'-7\" X 10'-0\"",
+          "bbox": {
+            "x_min": 80,
+            "y_min": 560,
+            "x_max": 180,
+            "y_max": 575
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "FLEX ROOM 15'-6\" X 12'-0\"",
+          "bbox": {
+            "x_min": 220,
+            "y_min": 700,
+            "x_max": 300,
+            "y_max": 720
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "PATIO 15'-6\" X 10'-3\"",
+          "bbox": {
+            "x_min": 70,
+            "y_min": 180,
+            "x_max": 180,
+            "y_max": 195
+          },
+          "category": "room_label"
+        }
+      ],
+      "adjacency": [
+        {
+          "from": "L_FLEX_ROOM_1",
+          "to": "L_HALLWAY_1",
+          "via": "door"
+        },
+        {
+          "from": "L_BEDROOM_1",
+          "to": "L_BATH_1",
+          "via": "door"
+        },
+        {
+          "from": "L_LIVING_ROOM_1",
+          "to": "L_PATIO_1",
+          "via": "door"
+        },
+        {
+          "from": "L_KITCHEN_1",
+          "to": "L_DINING_AREA_1",
+          "via": "opening"
+        },
+        {
+          "from": "L_DINING_AREA_1",
+          "to": "L_LIVING_ROOM_1",
+          "via": "opening"
+        },
+        {
+          "from": "L_HALLWAY_1",
+          "to": "L_STORAGE_1",
+          "via": "door"
+        },
+        {
+          "from": "L_HALLWAY_1",
+          "to": "L_BEDROOM_1",
+          "via": "door"
+        },
+        {
+          "from": "L_HALLWAY_1",
+          "to": "L_KITCHEN_1",
+          "via": "opening"
+        }
+      ],
+      "floor_analysis": {
+        "total_area": {
+          "value": 1312.0,
+          "unit": "sqft",
+          "source": "ocr"
+        },
+        "room_count": 9,
+        "layout_type": "traditional",
+        "ceiling_height": {
+          "value": 7.67,
+          "unit": "ft"
+        },
+        "notes": "Lower floor features a mix of living, sleeping, and utility spaces, with direct access to an outdoor patio. Stairs connect to the main floor. The Flex Room can serve multiple purposes."
+      },
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "floor_number": 1,
+      "floor_name": "Main Floor",
+      "floor_type": "main",
+      "label_detected": "MAIN FLOOR",
+      "detection_confidence": 0.98,
+      "detection_reasoning": "Explicit 'MAIN FLOOR' label; contains garage, kitchen, living, dining areas typical of a main level.",
+      "section_bbox": {
+        "x_min": 365,
+        "y_min": 60,
+        "x_max": 680,
+        "y_max": 950
+      },
+      "pixel_to_unit": {
+        "pixels_per_foot": 24.0,
+        "pixels_per_meter": 78.74,
+        "inferred_from": "door|tub|room_dimensions"
+      },
+      "walls": [
+        {
+          "polyline": [
+            [
+              375,
+              900
+            ],
+            [
+              375,
+              595
+            ],
+            [
+              415,
+              595
+            ],
+            [
+              415,
+              555
+            ],
+            [
+              455,
+              555
+            ],
+            [
+              455,
+              170
+            ],
+            [
+              670,
+              170
+            ],
+            [
+              670,
+              480
+            ],
+            [
+              630,
+              480
+            ],
+            [
+              630,
+              900
+            ],
+            [
+              375,
+              900
+            ]
+          ],
+          "thickness": {
+            "pixels": 11.0,
+            "value": 0.45,
+            "unit": "ft"
+          },
+          "type": "exterior"
+        },
+        {
+          "polyline": [
+            [
+              415,
+              600
+            ],
+            [
+              415,
+              750
+            ],
+            [
+              540,
+              750
+            ],
+            [
+              540,
+              600
+            ],
+            [
+              415,
+              600
+            ]
+          ],
+          "thickness": {
+            "pixels": 11.0,
+            "value": 0.45,
+            "unit": "ft"
+          },
+          "type": "exterior"
+        },
+        {
+          "polyline": [
+            [
+              460,
+              500
+            ],
+            [
+              460,
+              555
+            ],
+            [
+              415,
+              555
+            ],
+            [
+              415,
+              500
+            ],
+            [
+              460,
+              500
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              540,
+              600
+            ],
+            [
+              540,
+              750
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              540,
+              750
+            ],
+            [
+              630,
+              750
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        }
+      ],
+      "doors": [
+        {
+          "type": "entry",
+          "swing": "right",
+          "width": {
+            "value": 3.0,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 445,
+            "y": 600
+          },
+          "connects": [
+            "M_FOYER_1",
+            "Exterior"
+          ]
+        },
+        {
+          "type": "interior",
+          "swing": "left",
+          "width": {
+            "value": 2.5,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 540,
+            "y": 660
+          },
+          "connects": [
+            "M_FOYER_1",
+            "M_HALLWAY_1"
+          ]
+        },
+        {
+          "type": "interior",
+          "swing": "right",
+          "width": {
+            "value": 2.67,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 485,
+            "y": 480
+          },
+          "connects": [
+            "M_LIVING_ROOM_1",
+            "M_KITCHEN_1"
+          ]
+        },
+        {
+          "type": "sliding",
+          "swing": "none",
+          "width": {
+            "value": 6.0,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 630,
+            "y": 460
+          },
+          "connects": [
+            "M_DINING_ROOM_1",
+            "Exterior"
+          ]
+        },
+        {
+          "type": "other",
+          "swing": "none",
+          "width": {
+            "value": 16.0,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 500,
+            "y": 900
+          },
+          "connects": [
+            "M_GARAGE_1",
+            "Exterior"
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "type": "standard",
+          "span": {
+            "value": 5.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              470,
+              170
+            ],
+            [
+              550,
+              170
+            ]
+          ],
+          "room": "M_LIVING_ROOM_1"
+        },
+        {
+          "type": "standard",
+          "span": {
+            "value": 3.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              670,
+              200
+            ],
+            [
+              670,
+              240
+            ]
+          ],
+          "room": "M_KITCHEN_1"
+        },
+        {
+          "type": "standard",
+          "span": {
+            "value": 4.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              375,
+              410
+            ],
+            [
+              375,
+              470
+            ]
+          ],
+          "room": "M_DEN_1"
+        }
+      ],
+      "stairs": [
+        {
+          "type": "L-shaped",
+          "direction": "up",
+          "connects_to_floor": 2,
+          "polyline": [
+            [
+              545,
+              680
+            ],
+            [
+              545,
+              745
+            ],
+            [
+              575,
+              745
+            ],
+            [
+              575,
+              680
+            ]
+          ],
+          "tread_count": 14
+        },
+        {
+          "type": "L-shaped",
+          "direction": "down",
+          "connects_to_floor": 0,
+          "polyline": [
+            [
+              580,
+              680
+            ],
+            [
+              580,
+              745
+            ],
+            [
+              610,
+              745
+            ],
+            [
+              610,
+              680
+            ]
+          ],
+          "tread_count": 13
+        }
+      ],
+      "rooms": [
+        {
+          "id": "M_GARAGE_1",
+          "room_type": "garage",
+          "name": "Garage",
+          "label_ocr": "GARAGE 23'-0\" X 22'-0\"",
+          "polygon": [
+            [
+              375,
+              900
+            ],
+            [
+              375,
+              750
+            ],
+            [
+              630,
+              750
+            ],
+            [
+              630,
+              900
+            ]
+          ],
+          "centroid": {
+            "x": 502,
+            "y": 825
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 23.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 22.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 90.0,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 506.0,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "car_parking",
+            "double_car"
+          ],
+          "confidence": 0.98
+        },
+        {
+          "id": "M_FOYER_1",
+          "room_type": "foyer",
+          "name": "Foyer",
+          "label_ocr": "FOYER",
+          "polygon": [
+            [
+              415,
+              600
+            ],
+            [
+              415,
+              555
+            ],
+            [
+              455,
+              555
+            ],
+            [
+              455,
+              600
+            ]
+          ],
+          "centroid": {
+            "x": 435,
+            "y": 577
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 3.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 3.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 13.32,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 11.09,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "coat_closet",
+            "stairs_up",
+            "stairs_down"
+          ],
+          "confidence": 0.9
+        },
+        {
+          "id": "M_DEN_1",
+          "room_type": "office",
+          "name": "Den",
+          "label_ocr": "DEN 10'-6\" X 9'-0\"",
+          "polygon": [
+            [
+              375,
+              500
+            ],
+            [
+              375,
+              410
+            ],
+            [
+              455,
+              410
+            ],
+            [
+              455,
+              500
+            ]
+          ],
+          "centroid": {
+            "x": 415,
+            "y": 455
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 10.5,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 9.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 39.0,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 94.5,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "closet"
+          ],
+          "confidence": 0.9
+        },
+        {
+          "id": "M_BATH_1",
+          "room_type": "bathroom",
+          "name": "Bathroom 1",
+          "label_ocr": null,
+          "polygon": [
+            [
+              375,
+              595
+            ],
+            [
+              375,
+              500
+            ],
+            [
+              415,
+              500
+            ],
+            [
+              415,
+              595
+            ]
+          ],
+          "centroid": {
+            "x": 395,
+            "y": 547
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 3.96,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 3.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 14.58,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 13.2,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "toilet",
+            "sink",
+            "shower"
+          ],
+          "confidence": 0.85
+        },
+        {
+          "id": "M_LAUNDRY_1",
+          "room_type": "laundry_room",
+          "name": "Laundry",
+          "label_ocr": "LAUNDRY",
+          "polygon": [
+            [
+              600,
+              750
+            ],
+            [
+              600,
+              680
+            ],
+            [
+              630,
+              680
+            ],
+            [
+              630,
+              750
+            ]
+          ],
+          "centroid": {
+            "x": 615,
+            "y": 715
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 2.92,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 2.5,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 10.84,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 7.3,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "washer",
+            "dryer"
+          ],
+          "confidence": 0.85
+        },
+        {
+          "id": "M_KITCHEN_1",
+          "room_type": "kitchen",
+          "name": "Kitchen",
+          "label_ocr": "KITCHEN 16'-7\" X 11'-0\"",
+          "polygon": [
+            [
+              455,
+              410
+            ],
+            [
+              455,
+              305
+            ],
+            [
+              670,
+              305
+            ],
+            [
+              670,
+              410
+            ],
+            [
+              600,
+              410
+            ],
+            [
+              600,
+              480
+            ],
+            [
+              540,
+              480
+            ],
+            [
+              540,
+              410
+            ]
+          ],
+          "centroid": {
+            "x": 562,
+            "y": 357
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 16.58,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 11.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 55.16,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 182.38,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "island",
+            "sink",
+            "stove",
+            "refrigerator",
+            "dishwasher",
+            "pantry"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "M_LIVING_ROOM_1",
+          "room_type": "living_room",
+          "name": "Living Room",
+          "label_ocr": "LIVING ROOM 16'-7\" X 13'-2\"",
+          "polygon": [
+            [
+              455,
+              305
+            ],
+            [
+              455,
+              170
+            ],
+            [
+              670,
+              170
+            ],
+            [
+              670,
+              305
+            ]
+          ],
+          "centroid": {
+            "x": 562,
+            "y": 237
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 16.58,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 13.17,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 59.5,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 218.32,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "fireplace"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "M_DINING_ROOM_1",
+          "room_type": "dining_room",
+          "name": "Dining Room",
+          "label_ocr": "DINING ROOM 12'-4\" X 9'-0\"",
+          "polygon": [
+            [
+              600,
+              480
+            ],
+            [
+              600,
+              410
+            ],
+            [
+              670,
+              410
+            ],
+            [
+              670,
+              480
+            ]
+          ],
+          "centroid": {
+            "x": 635,
+            "y": 445
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 12.33,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 9.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 42.66,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 110.97,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [],
+          "confidence": 0.9
+        },
+        {
+          "id": "M_HALLWAY_1",
+          "room_type": "hallway",
+          "name": "Hallway",
+          "label_ocr": "HALL",
+          "polygon": [
+            [
+              540,
+              600
+            ],
+            [
+              540,
+              750
+            ],
+            [
+              575,
+              750
+            ],
+            [
+              575,
+              680
+            ],
+            [
+              600,
+              680
+            ],
+            [
+              600,
+              600
+            ]
+          ],
+          "centroid": {
+            "x": 570,
+            "y": 675
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 5.0,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 3.75,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 21.46,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 18.75,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "stairs_up",
+            "stairs_down"
+          ],
+          "confidence": 0.8
+        }
+      ],
+      "texts": [
+        {
+          "text": "MAIN FLOOR",
+          "bbox": {
+            "x_min": 410,
+            "y_min": 100,
+            "x_max": 520,
+            "y_max": 115
+          },
+          "category": "floor_label"
+        },
+        {
+          "text": "1320 SQ. FT.",
+          "bbox": {
+            "x_min": 430,
+            "y_min": 120,
+            "x_max": 510,
+            "y_max": 135
+          },
+          "category": "dimension"
+        },
+        {
+          "text": "9'-0\" CEILING HEIGHT",
+          "bbox": {
+            "x_min": 400,
+            "y_min": 140,
+            "x_max": 520,
+            "y_max": 150
+          },
+          "category": "note"
+        },
+        {
+          "text": "GARAGE 23'-0\" X 22'-0\"",
+          "bbox": {
+            "x_min": 450,
+            "y_min": 780,
+            "x_max": 550,
+            "y_max": 800
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "KITCHEN 16'-7\" X 11'-0\"",
+          "bbox": {
+            "x_min": 510,
+            "y_min": 360,
+            "x_max": 610,
+            "y_max": 375
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "LIVING ROOM 16'-7\" X 13'-2\"",
+          "bbox": {
+            "x_min": 510,
+            "y_min": 220,
+            "x_max": 610,
+            "y_max": 240
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "DEN 10'-6\" X 9'-0\"",
+          "bbox": {
+            "x_min": 390,
+            "y_min": 440,
+            "x_max": 440,
+            "y_max": 460
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "FOYER",
+          "bbox": {
+            "x_min": 420,
+            "y_min": 560,
+            "x_max": 450,
+            "y_max": 570
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "DINING ROOM 12'-4\" X 9'-0\"",
+          "bbox": {
+            "x_min": 610,
+            "y_min": 420,
+            "x_max": 660,
+            "y_max": 440
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "LAUNDRY",
+          "bbox": {
+            "x_min": 605,
+            "y_min": 690,
+            "x_max": 625,
+            "y_max": 705
+          },
+          "category": "room_label"
+        }
+      ],
+      "adjacency": [
+        {
+          "from": "M_FOYER_1",
+          "to": "Exterior",
+          "via": "door"
+        },
+        {
+          "from": "M_FOYER_1",
+          "to": "M_HALLWAY_1",
+          "via": "door"
+        },
+        {
+          "from": "M_GARAGE_1",
+          "to": "Exterior",
+          "via": "door"
+        },
+        {
+          "from": "M_GARAGE_1",
+          "to": "M_FOYER_1",
+          "via": "door"
+        },
+        {
+          "from": "M_HALLWAY_1",
+          "to": "M_LAUNDRY_1",
+          "via": "door"
+        },
+        {
+          "from": "M_HALLWAY_1",
+          "to": "M_DEN_1",
+          "via": "door"
+        },
+        {
+          "from": "M_HALLWAY_1",
+          "to": "M_BATH_1",
+          "via": "door"
+        },
+        {
+          "from": "M_HALLWAY_1",
+          "to": "M_KITCHEN_1",
+          "via": "opening"
+        },
+        {
+          "from": "M_KITCHEN_1",
+          "to": "M_LIVING_ROOM_1",
+          "via": "opening"
+        },
+        {
+          "from": "M_KITCHEN_1",
+          "to": "M_DINING_ROOM_1",
+          "via": "opening"
+        },
+        {
+          "from": "M_DINING_ROOM_1",
+          "to": "Exterior",
+          "via": "door"
+        }
+      ],
+      "floor_analysis": {
+        "total_area": {
+          "value": 1320.0,
+          "unit": "sqft",
+          "source": "ocr"
+        },
+        "room_count": 9,
+        "layout_type": "open_concept",
+        "ceiling_height": {
+          "value": 9.0,
+          "unit": "ft"
+        },
+        "notes": "Main floor features an open-concept layout connecting kitchen, living, and dining areas. Includes a two-car garage and direct access to exterior. Stairs connect to both lower and upper floors."
+      },
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "floor_number": 2,
+      "floor_name": "Upper Floor",
+      "floor_type": "second",
+      "label_detected": "UPPER FLOOR",
+      "detection_confidence": 0.98,
+      "detection_reasoning": "Explicit 'UPPER FLOOR' label; predominantly features bedrooms, typical of an upper level.",
+      "section_bbox": {
+        "x_min": 680,
+        "y_min": 60,
+        "x_max": 970,
+        "y_max": 950
+      },
+      "pixel_to_unit": {
+        "pixels_per_foot": 24.0,
+        "pixels_per_meter": 78.74,
+        "inferred_from": "door|tub|room_dimensions"
+      },
+      "walls": [
+        {
+          "polyline": [
+            [
+              690,
+              900
+            ],
+            [
+              690,
+              480
+            ],
+            [
+              710,
+              480
+            ],
+            [
+              710,
+              410
+            ],
+            [
+              750,
+              410
+            ],
+            [
+              750,
+              170
+            ],
+            [
+              960,
+              170
+            ],
+            [
+              960,
+              480
+            ],
+            [
+              930,
+              480
+            ],
+            [
+              930,
+              900
+            ],
+            [
+              690,
+              900
+            ]
+          ],
+          "thickness": {
+            "pixels": 11.0,
+            "value": 0.45,
+            "unit": "ft"
+          },
+          "type": "exterior"
+        },
+        {
+          "polyline": [
+            [
+              750,
+              305
+            ],
+            [
+              750,
+              410
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              800,
+              305
+            ],
+            [
+              800,
+              410
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              750,
+              410
+            ],
+            [
+              800,
+              410
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        },
+        {
+          "polyline": [
+            [
+              710,
+              480
+            ],
+            [
+              930,
+              480
+            ]
+          ],
+          "thickness": {
+            "pixels": 5.5,
+            "value": 0.23,
+            "unit": "ft"
+          },
+          "type": "interior"
+        }
+      ],
+      "doors": [
+        {
+          "type": "interior",
+          "swing": "left",
+          "width": {
+            "value": 2.5,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 800,
+            "y": 455
+          },
+          "connects": [
+            "U_HALLWAY_1",
+            "U_PRIMARY_BEDROOM_1"
+          ]
+        },
+        {
+          "type": "interior",
+          "swing": "right",
+          "width": {
+            "value": 2.67,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 855,
+            "y": 500
+          },
+          "connects": [
+            "U_HALLWAY_1",
+            "U_BEDROOM_2"
+          ]
+        },
+        {
+          "type": "interior",
+          "swing": "left",
+          "width": {
+            "value": 2.5,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 750,
+            "y": 370
+          },
+          "connects": [
+            "U_PRIMARY_BATH_1",
+            "U_WIC_1"
+          ]
+        },
+        {
+          "type": "interior",
+          "swing": "right",
+          "width": {
+            "value": 2.5,
+            "unit": "ft",
+            "source": "estimate"
+          },
+          "center": {
+            "x": 750,
+            "y": 500
+          },
+          "connects": [
+            "U_HALLWAY_1",
+            "U_BEDROOM_1"
+          ]
+        }
+      ],
+      "windows": [
+        {
+          "type": "standard",
+          "span": {
+            "value": 6.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              770,
+              170
+            ],
+            [
+              840,
+              170
+            ]
+          ],
+          "room": "U_PRIMARY_BEDROOM_1"
+        },
+        {
+          "type": "standard",
+          "span": {
+            "value": 4.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              690,
+              520
+            ],
+            [
+              690,
+              570
+            ]
+          ],
+          "room": "U_BEDROOM_1"
+        },
+        {
+          "type": "standard",
+          "span": {
+            "value": 5.0,
+            "unit": "ft",
+            "source": "scale"
+          },
+          "centerline": [
+            [
+              960,
+              780
+            ],
+            [
+              960,
+              830
+            ]
+          ],
+          "room": "U_REC_ROOM_1"
+        }
+      ],
+      "stairs": [
+        {
+          "type": "L-shaped",
+          "direction": "down",
+          "connects_to_floor": 1,
+          "polyline": [
+            [
+              855,
+              680
+            ],
+            [
+              855,
+              745
+            ],
+            [
+              825,
+              745
+            ],
+            [
+              825,
+              680
+            ]
+          ],
+          "tread_count": 14
+        }
+      ],
+      "rooms": [
+        {
+          "id": "U_PRIMARY_BEDROOM_1",
+          "room_type": "master_bedroom",
+          "name": "Primary Bedroom",
+          "label_ocr": "(VAULTED) PRIMARY BEDROOM 14'-9\" X 15'-8\"",
+          "polygon": [
+            [
+              750,
+              455
+            ],
+            [
+              750,
+              170
+            ],
+            [
+              900,
+              170
+            ],
+            [
+              900,
+              455
+            ]
+          ],
+          "centroid": {
+            "x": 825,
+            "y": 312
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 14.75,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 15.67,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 60.84,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 231.1,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "vaulted_ceiling"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "U_PRIMARY_BATH_1",
+          "room_type": "bathroom",
+          "name": "Primary Bathroom",
+          "label_ocr": null,
+          "polygon": [
+            [
+              750,
+              305
+            ],
+            [
+              750,
+              205
+            ],
+            [
+              700,
+              205
+            ],
+            [
+              700,
+              305
+            ]
+          ],
+          "centroid": {
+            "x": 725,
+            "y": 255
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 8.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 4.17,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 25.0,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 34.72,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "toilet",
+            "double_sink",
+            "shower",
+            "tub"
+          ],
+          "confidence": 0.9
+        },
+        {
+          "id": "U_WIC_1",
+          "room_type": "walk_in_closet",
+          "name": "Walk-in Closet",
+          "label_ocr": "WIC",
+          "polygon": [
+            [
+              700,
+              305
+            ],
+            [
+              700,
+              410
+            ],
+            [
+              750,
+              410
+            ],
+            [
+              750,
+              305
+            ]
+          ],
+          "centroid": {
+            "x": 725,
+            "y": 357
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 8.75,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 4.17,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 25.84,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 36.46,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "shelving"
+          ],
+          "confidence": 0.85
+        },
+        {
+          "id": "U_BEDROOM_1",
+          "room_type": "bedroom",
+          "name": "Bedroom 1",
+          "label_ocr": "BEDROOM 16'-0\" X 11'-4\"",
+          "polygon": [
+            [
+              690,
+              600
+            ],
+            [
+              690,
+              480
+            ],
+            [
+              750,
+              480
+            ],
+            [
+              750,
+              600
+            ]
+          ],
+          "centroid": {
+            "x": 720,
+            "y": 540
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 16.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 11.33,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 54.66,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 181.28,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "closet"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "U_BEDROOM_2",
+          "room_type": "bedroom",
+          "name": "Bedroom 2",
+          "label_ocr": "BEDROOM 12'-0\" X 11'-4\"",
+          "polygon": [
+            [
+              750,
+              600
+            ],
+            [
+              750,
+              480
+            ],
+            [
+              820,
+              480
+            ],
+            [
+              820,
+              600
+            ]
+          ],
+          "centroid": {
+            "x": 785,
+            "y": 540
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 12.0,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 11.33,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 46.66,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 135.96,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "closet"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "U_BATHROOM_2",
+          "room_type": "bathroom",
+          "name": "Bathroom 2",
+          "label_ocr": "BATH",
+          "polygon": [
+            [
+              820,
+              480
+            ],
+            [
+              820,
+              540
+            ],
+            [
+              860,
+              540
+            ],
+            [
+              860,
+              480
+            ]
+          ],
+          "centroid": {
+            "x": 840,
+            "y": 510
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 5.0,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 3.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 16.66,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 16.65,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "toilet",
+            "sink",
+            "tub_shower_combo"
+          ],
+          "confidence": 0.85
+        },
+        {
+          "id": "U_REC_ROOM_1",
+          "room_type": "recreation_room",
+          "name": "Recreation Room",
+          "label_ocr": "(VAULTED) RECREATION ROOM 17'-1\" X 10'-2\"",
+          "polygon": [
+            [
+              820,
+              600
+            ],
+            [
+              820,
+              900
+            ],
+            [
+              930,
+              900
+            ],
+            [
+              930,
+              600
+            ]
+          ],
+          "centroid": {
+            "x": 875,
+            "y": 750
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 17.08,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "width": {
+              "value": 10.17,
+              "unit": "ft",
+              "source": "ocr"
+            },
+            "perimeter": {
+              "value": 54.5,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 173.6,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "vaulted_ceiling"
+          ],
+          "confidence": 0.95
+        },
+        {
+          "id": "U_HALLWAY_1",
+          "room_type": "hallway",
+          "name": "Hallway",
+          "label_ocr": null,
+          "polygon": [
+            [
+              820,
+              540
+            ],
+            [
+              820,
+              600
+            ],
+            [
+              860,
+              600
+            ],
+            [
+              860,
+              540
+            ]
+          ],
+          "centroid": {
+            "x": 840,
+            "y": 570
+          },
+          "measured_dimensions": {
+            "length": {
+              "value": 5.0,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "width": {
+              "value": 3.33,
+              "unit": "ft",
+              "source": "scale"
+            },
+            "perimeter": {
+              "value": 16.66,
+              "unit": "ft"
+            },
+            "area": {
+              "value": 16.65,
+              "unit": "sqft"
+            },
+            "estimated": false
+          },
+          "features": [
+            "stairs_down"
+          ],
+          "confidence": 0.8
+        }
+      ],
+      "texts": [
+        {
+          "text": "UPPER FLOOR",
+          "bbox": {
+            "x_min": 730,
+            "y_min": 100,
+            "x_max": 830,
+            "y_max": 115
+          },
+          "category": "floor_label"
+        },
+        {
+          "text": "1409 SQ. FT.",
+          "bbox": {
+            "x_min": 750,
+            "y_min": 120,
+            "x_max": 830,
+            "y_max": 135
+          },
+          "category": "dimension"
+        },
+        {
+          "text": "8'-0\" - 12'-6\" CEILING HEIGHTS",
+          "bbox": {
+            "x_min": 710,
+            "y_min": 140,
+            "x_max": 850,
+            "y_max": 150
+          },
+          "category": "note"
+        },
+        {
+          "text": "PRIMARY BEDROOM 14'-9\" X 15'-8\"",
+          "bbox": {
+            "x_min": 760,
+            "y_min": 280,
+            "x_max": 890,
+            "y_max": 300
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "WIC",
+          "bbox": {
+            "x_min": 715,
+            "y_min": 350,
+            "x_max": 735,
+            "y_max": 365
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "BEDROOM 16'-0\" X 11'-4\"",
+          "bbox": {
+            "x_min": 700,
+            "y_min": 530,
+            "x_max": 740,
+            "y_max": 545
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "BEDROOM 12'-0\" X 11'-4\"",
+          "bbox": {
+            "x_min": 760,
+            "y_min": 530,
+            "x_max": 800,
+            "y_max": 545
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "RECREATION ROOM 17'-1\" X 10'-2\"",
+          "bbox": {
+            "x_min": 830,
+            "y_min": 750,
+            "x_max": 920,
+            "y_max": 770
+          },
+          "category": "room_label"
+        },
+        {
+          "text": "BATH",
+          "bbox": {
+            "x_min": 830,
+            "y_min": 490,
+            "x_max": 850,
+            "y_max": 505
+          },
+          "category": "room_label"
+        }
+      ],
+      "adjacency": [
+        {
+          "from": "U_PRIMARY_BEDROOM_1",
+          "to": "U_HALLWAY_1",
+          "via": "door"
+        },
+        {
+          "from": "U_PRIMARY_BEDROOM_1",
+          "to": "U_PRIMARY_BATH_1",
+          "via": "door"
+        },
+        {
+          "from": "U_PRIMARY_BATH_1",
+          "to": "U_WIC_1",
+          "via": "door"
+        },
+        {
+          "from": "U_HALLWAY_1",
+          "to": "U_BEDROOM_1",
+          "via": "door"
+        },
+        {
+          "from": "U_HALLWAY_1",
+          "to": "U_BEDROOM_2",
+          "via": "door"
+        },
+        {
+          "from": "U_HALLWAY_1",
+          "to": "U_BATHROOM_2",
+          "via": "door"
+        },
+        {
+          "from": "U_HALLWAY_1",
+          "to": "U_REC_ROOM_1",
+          "via": "opening"
+        }
+      ],
+      "floor_analysis": {
+        "total_area": {
+          "value": 1409.0,
+          "unit": "sqft",
+          "source": "ocr"
+        },
+        "room_count": 8,
+        "layout_type": "traditional",
+        "ceiling_height": {
+          "value": 8.0,
+          "unit": "ft"
+        },
+        "notes": "Upper floor is primarily dedicated to bedrooms, including a primary suite with ensuite and walk-in closet, and a recreation room. Features vaulted ceilings in some areas."
+      },
+      "warnings": [],
+      "errors": []
+    }
+  ],
+  "overall_analysis": {
+    "home_style": "three_story",
+    "has_basement": true,
+    "has_attic": false,
+    "totals": {
+      "area": {
+        "value": 4041.0,
+        "unit": "sqft"
+      },
+      "rooms": 26,
+      "floors": 3
+    },
+    "overall_confidence": 0.95,
+    "notes": "The floor plan presents a three-story residence with a lower (basement), main, and upper floor. Each floor is clearly delineated with labels and areas. The scale was consistently inferred across all plans using standard fixture and room dimensions. Ceiling heights vary by floor, indicating design consideration for each level. Total finished area matches the provided table."
+  }
+}

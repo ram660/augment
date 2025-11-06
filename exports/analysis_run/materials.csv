@@ -1,0 +1,312 @@
+id,room_id,category,material_type,brand,color,finish
+4440b579-4fcf-4fee-a7d7-7163c05477de,,flooring,hardwood,,light brown,satin
+99d7ce0b-e459-4c10-8b7f-38d93bf30607,,wall,painted drywall,,greige,matte
+ed091e89-1ca0-4f4f-9ca2-768c8b07be8f,,ceiling,painted drywall,,greige,matte
+b5469654-d815-42f0-9654-23286cbe70cf,,countertop,granite,,dark grey/black,polished
+86589ce6-2025-4d54-b48b-a3be3d3e2141,,cabinetry,wood,,white,painted satin
+05f95257-46a3-449e-b811-9cdee0542a23,,backsplash,ceramic tile,,dark blue/grey,glossy
+3ac1d895-948b-42cc-b12d-e2dd258933b0,,cabinetry,metal,,silver,brushed_nickel
+cd9e3f31-75b8-4852-bfb5-9a9b3c8f7af2,,flooring,hardwood,,light brown,satin
+b61e95cd-66cc-4e34-80d7-2b443c076c18,,wall,drywall,,light beige/greige,matte
+4751ceb1-18c1-4fe5-aaf1-1cd5be99b98e,,ceiling,drywall,,white,matte
+be04ce9b-9ad7-4f8f-84ca-d8fabc62a602,,countertop,granite,,black,polished
+ee7b415c-7ffe-48e9-b2ba-2eed03e86059,,cabinetry,painted wood/MDF,,off-white,satin
+888b0b1f-5722-4453-a4eb-d471ae3bbca8,,backsplash,ceramic/porcelain tile,,dark grey/black,matte
+fab2bf46-3d6b-4407-b06b-00582e21d5a6,,flooring,hardwood,,light natural wood,satin
+ea0a6b85-4cf1-40ee-a8e1-0c8fded13e20,,wall,painted drywall,,light beige/greige,matte
+2f725be6-23a3-4592-89ce-7869c25ef19c,,ceiling,painted drywall,,off-white,matte
+443a1b3f-ebde-4916-87c1-1889f273d35a,,countertop,granite,,dark grey/black with light flecks,polished
+3bd37878-7f0a-4cba-9d30-4268080d0890,,cabinetry,wood (likely MDF or solid wood with veneer),,white,satin
+f838c120-2af1-423e-86ab-eb615a251e69,,backsplash,ceramic/porcelain tile,,dark blue/grey,matte
+fcfa812a-8c37-41f4-87a3-9bcd657d6b2d,,flooring,carpet,,light beige,plush
+bc45aca0-df82-4d99-8c10-e04a1d71ac0b,,wall,drywall,,greige,matte paint
+b18089df-0635-48c7-8cd3-a9b6fad7eb01,,ceiling,drywall,,white,matte paint
+539c654e-7254-4a74-ae35-a4f77b4be15a,,other,metal,,black,matte
+24a8e5bd-f497-40fd-b11c-c021faab98aa,,other,cotton_blend,,white,soft
+87e8c952-c626-47af-917c-5428885fc790,,other,wood,,dark brown,satin
+4f07c353-d350-47bc-b736-8b6322a6f6d2,,other,metal_and_glass,,silver,polished
+493a7710-c9aa-4b20-9c07-69990fdcb36e,,other,fabric,,light grey/beige pattern,upholstered
+dbfded67-d7fc-48df-aaf8-37fe66af7c32,,other,faux_leather_and_wood,,dark brown,satin
+3d44693e-fd66-4247-856f-527c38b87713,,other,fabric,,grey,matte
+80570b26-87d2-4f35-9268-737bf64a5e21,,flooring,carpet,,light_beige,cut_pile
+9a5800f0-e068-448c-845f-2ff273db32c6,,wall,painted_drywall,,light_tan,matte_eggshell
+d07a24c5-fdec-4c84-8937-819af6493c11,,ceiling,painted_drywall,,light_tan,matte
+354d265a-7214-4be2-a010-336c3fa670e0,,window,fabric_curtains,,dark_grey,matte
+e780f24c-c434-4171-b206-5c5079e1248f,,flooring,carpet,,light grey,matte
+41b0d223-1e8f-489c-a85a-9b098b3e06df,,wall,paint,,beige,matte
+e162418c-9e5e-45dc-ad45-43d40fc13fd0,,ceiling,paint,,white,matte
+5392c83a-d8b3-48b0-a596-eed55dc5e2de,,window,fabric curtains,,dark grey,matte
+cfd2fcc9-1897-47c9-98e8-212744b307bf,,other,wood/MDF,,black-brown,satin
+552ce828-68d6-4425-a925-1d2664691fa3,,flooring,carpet,,light_grey,matte
+2e02fe2f-9466-45ea-a7ac-e390904addec,,wall,painted_drywall,,light_beige,matte_satin
+e9ee2a90-16a3-41ac-b7cf-2ca709eb8046,,ceiling,painted_drywall,,white,matte
+b0afd48c-a3df-4200-ad3d-d5b964ba6c8a,,window,wood_vinyl,,white,painted
+2a8a9a7b-c1cc-4cd7-8314-371b9fd86509,,other,fabric,,dark_grey_blue,matte
+04141944-885f-408f-9b91-98e6937d4586,,flooring,carpet,,light_greige,plush
+c03c10e5-81a9-4ea5-b5bf-ea13b952d153,,wall,painted_drywall,,greige,matte_to_eggshell
+47c36d64-a604-4fb6-a37f-e44d94cd3455,,ceiling,painted_drywall,,white,matte
+5e5e3e7f-4138-470a-9aba-1a9ef0319708,,other,metal,,black,matte
+ebf34942-a0f7-42fe-abf2-9dc5439a0677,,other,wood,,dark_brown,satin
+d56a23bb-be35-430f-a58c-81083508c397,,other,faux_leather,,dark_gray,matte
+fd7dd7a0-5e0d-46b5-92bd-c68392ccb70d,,other,cotton_blend,,white|light_gray|blue,soft
+ce47873b-3cca-45f6-9be6-92db13272d0a,,flooring,porcelain tile,,white,matte
+32085f0e-103b-459e-b59c-4267e0d03b7d,,wall,drywall,,beige,matte
+5208ec71-a90c-439e-bf4c-f4403c9bc688,,ceiling,drywall,,white,matte
+8013d728-26c6-43c5-85fe-04f2863108e0,,countertop,granite,,"light speckled (white, grey, brown)",polished
+638bdbeb-cb1d-4676-8464-8201ff8eecf4,,cabinetry,wood,,dark brown (espresso),satin
+77f492b5-7aab-44e1-b356-a269bd4de186,,other,wood,,dark brown (espresso),satin
+2853aab1-82cb-4f18-acd8-6e861037e2f5,,other,tempered glass,,clear,smooth
+036ad3b8-0aca-43f5-84d9-8e257f639b35,,flooring,porcelain_tile,,light_grey_white,matte
+739b8f1a-85a8-4725-821d-5dee0045ae3c,,wall,painted_drywall,,beige_greige,matte
+c98af7fd-e282-4b5f-986a-41fc000b9598,,ceiling,painted_drywall,,white,matte
+1f432f2a-ac26-45f9-a1ff-b1825aa8fa5d,,countertop,granite_or_quartz,,light_beige_cream_with_speckles,polished
+e5c45662-685e-45df-81b9-5b88eedd84c9,,cabinetry,wood,,dark_espresso_brown,satin
+88d4e25f-f4f0-477b-bea5-ba4952c65643,,other,tempered_glass,,clear,smooth
+f5139998-a5ff-4602-b78e-1fdb50b062ea,,other,wood,,dark_espresso_brown,satin
+534f8369-34c5-4ce8-9e54-b5f682bb6767,,trim,painted_wood,,white,satin
+27f4457e-30b9-4354-8d6e-affc469718ad,,flooring,porcelain_tile,,white,matte
+08a400d2-ffdc-404a-b250-8a595c0a8e5f,,wall,painted_drywall,,light_beige,eggshell
+b4173e0d-c3ed-4386-b897-38e833ad85ad,,ceiling,painted_drywall,,white,matte
+f466b3ad-67e7-4ef7-8e08-59f02040c85b,,countertop,granite_or_quartz,,white_grey_brown_speckled,polished
+c792ccc2-643a-4038-b971-3322ac2208b7,,cabinetry,wood,,dark_cherry_brown,satin
+d1e5d3f6-f76b-4db3-a735-4295250a3910,,other,wood,,dark_cherry_brown,satin
+0e02f4d8-5e9d-4192-8414-b60a6dd31595,,other,tempered_glass,,clear,smooth
+0a248d28-f7f8-46e0-9d4f-dacf0dc485fe,,wall,ceramic_tile,,white,glossy
+96943de6-623a-403c-bd61-0c97add57670,,flooring,carpet,,light beige,plush
+aa4ac3f8-bef0-4beb-896b-62686d0b1638,,wall,painted drywall,,light beige,matte
+836f8659-663f-4cb0-90c3-3a0f53b1c9f3,,ceiling,painted drywall,,white,matte
+b7086356-4b6f-4b04-9fb1-20a54cd2f7c2,,other,solid wood,,dark brown,satin
+a3d6c11c-a58c-4c9b-bef5-09bfa8ced9a2,,other,wood,,light natural wood,satin
+26b4377e-5801-4c01-a288-7712254b8235,,trim,painted wood,,white,semi-gloss
+aef0d6d8-48c7-4958-82b5-15edc1fe05e8,,flooring,carpet,,light beige,plush/cut pile
+77e9570d-bc0f-4989-bbd8-74c8c00aac0f,,wall,painted drywall,,greige,matte
+a177efa8-2451-42e1-955c-abcac94669a0,,ceiling,painted drywall,,white,matte
+2358b542-c325-42bf-bd9d-ae2aeddb2b56,,trim,painted wood,,white,semi-gloss
+beb25ffd-8b82-454e-9ba0-454603c5f3d8,,flooring,carpet,,light beige,plush
+e838d14a-f8f6-458c-b455-550c4cac4e33,,wall,drywall,,light tan,matte
+11d77424-b1e2-4745-8b76-b0d16cfdf74a,,ceiling,drywall,,white,matte
+40b17a31-ad0b-4013-b202-bfb8aa1a0eef,,window,wood_or_vinyl,,white,painted
+af86b125-e2a6-4b6d-a994-7c5fa0e875af,,trim,wood,,white,painted
+516490f1-6073-45a6-956d-b4ab58ce9838,,other,wood_frame_with_glass,,light tan,painted
+1f187a36-f1c2-4a94-917c-e8110ae5b71a,,other,textured_glass,,clear/frosted,matte
+d475ade5-9934-495f-8ac2-24f3ab3fb862,,other,metal_and_plastic,,brushed nickel / white,brushed
+9813e722-4642-45b1-92c8-330a984ba8f1,,door,fiberglass_or_steel,,white,painted
+2c625bbf-63eb-4dfb-8c68-df836f3cae94,,flooring,carpet,,light_beige/greige,plush
+cd60db9d-8f92-488a-905a-eee5a9f83dfe,,wall,drywall,,light_beige/greige,matte
+76025c99-dd33-4583-a556-0872ff361d73,,ceiling,drywall,,white,matte
+ab293e5e-5013-4efc-aae2-656df45dae7f,,countertop,granite,,dark_gray/black,polished
+5aac7fbf-e307-40d2-acaa-b4410921e03c,,cabinetry,wood,,dark_brown,satin
+d92c42ca-a949-45d0-9063-806f94eceb7e,,trim,wood/MDF,,white,satin
+b22ef5da-4730-4b44-9aec-f980b95b2aca,,flooring,carpet,,light beige,matte
+537bd510-f24f-43d8-802c-225766b1cfb3,,wall,painted drywall,,off-white,matte
+cad8cec3-abd4-4734-9515-7edc59258ce4,,ceiling,painted drywall,,white,matte
+12bc7cdc-34a1-4647-816c-99bea3a392d5,,countertop,granite_or_quartz,,dark grey,polished
+b13a4643-a494-4870-80f7-16670d374ddc,,cabinetry,wood,,dark brown,satin
+0a68258f-ce18-4e0c-ba7e-64dc0f523f2f,,other,frosted_glass_or_acrylic,,translucent white,matte
+331ad48f-0b43-4e53-a0c9-ec841dc7a0d4,,flooring,carpet,,light_grey,plush
+94d8aa70-8076-44d0-a9ea-3e59dbd9370c,,wall,painted_drywall,,greige,matte
+956b49eb-9655-4c0e-b33f-77d03d046014,,ceiling,painted_drywall,,off_white,matte
+8a71870f-dfe4-45b6-880c-5b6fffce8900,,trim,painted_wood_mdf,,white,satin
+c5e83493-fe21-4eb3-9211-97915207b9b6,,door,painted_wood_mdf,,white,satin
+c20631f2-e3dc-424a-b385-e0bfcb3a77bf,,flooring,porcelain_tile,,light_gray,matte
+68c84255-337c-4ca4-8cef-55ed8395ddf1,,wall,drywall,,light_greige,eggshell
+9aeebd59-a808-47f1-856e-d6a23c7b5988,,ceiling,drywall,,white,matte
+f2105604-01b3-4eb6-91d1-1551fcb9cdec,,countertop,granite_or_quartz,,light_beige_with_speckles,polished
+3139dd42-c9f9-4a1a-aa01-6153402c9f40,,cabinetry,painted_wood_or_MDF,,dark_gray,satin
+283eb4d8-adc4-4c38-aa06-ef067b32de99,,other,tempered_glass,,clear,smooth
+ebe78d3a-e73c-4b2c-8c1f-e0dcb36ab09c,,trim,painted_wood_or_MDF,,white,satin
+d340134d-8b3e-492c-833d-0f5c476d076c,,flooring,porcelain_tile,,light_gray_white,matte
+579171bb-b76e-4737-b47f-31d9aa24c683,,wall,drywall,,light_gray,eggshell
+02689504-a22f-4862-b0f9-d579ec5a19b2,,ceiling,drywall,,white,flat
+cb9055e5-7737-45c0-b49b-e83cd6b4612b,,countertop,granite,,light_beige_cream_with_speckles,polished
+9fb48ac6-07f8-43ac-bf79-dbed47cbad60,,cabinetry,painted_wood_MDF,,dark_gray_charcoal,satin
+466db774-a51f-4cff-ba17-6fc88c97c56e,,other,tempered_glass,,clear,smooth
+0e0f22fc-447a-412e-b9bf-2bddc2cbd9ef,,trim,painted_wood_MDF,,white,satin
+03334683-7738-40f7-a41a-4d5cf6183ab6,,flooring,laminate_wood_plank,,medium_brown,satin
+5b413fd3-eb8c-4d48-85e3-165675cd18bb,,wall,painted_drywall,,light_beige,matte
+352374e6-dd4d-47c8-bcc9-65f723bfc724,,ceiling,painted_drywall,,white,matte
+e41215c8-203e-4030-b453-82e129947dfd,,other,ceramic_tile,,grey,matte
+f7f606d7-a716-4773-a627-81540f7ff2f8,,trim,painted_wood,,white,satin
+24b2091d-10df-4f05-91b7-b8b6141a7258,,other,wood,,dark_brown,satin
+8f7bf713-a1bd-43ea-a443-5efbaedfbc33,,other,faux_leather,,brown,matte
+46c5ed7f-7ac9-4dde-87d2-12e426df7e2b,,other,laminate_MDF,,white,matte
+95768e2c-6f14-41d6-9ea9-d5b0173e01d4,,other,MDF_laminate,,white,matte
+44495777-ea46-4f0b-a649-c6ebcd301b16,,other,metal,,silver,brushed_nickel
+658278bc-1deb-475a-943e-cb960b81c5dc,,flooring,laminate_wood,,medium_brown,matte
+8ac51792-05c5-4303-868b-f603f7738691,,wall,painted_drywall,,light_beige,matte
+7504d5d6-63e3-45d8-ba0c-7ce094a6e367,,ceiling,painted_drywall,,white,matte
+b67dae48-3586-4813-b0d4-f62f0c7c2623,,countertop,laminate,,white_cream,matte
+850fd9a5-9bbd-42b8-9597-1d17bb3017d6,,cabinetry,wood_veneer,,medium_cherry_brown,satin
+8a519b26-e107-4b83-a9ed-936efd0040c6,,trim,painted_wood,,white,satin
+178d6625-d36b-4bfa-a632-254f90eb8c4a,,flooring,hardwood,,light_maple,satin
+0f48b047-c6c4-4255-969d-bdd97c426dd6,,wall,painted_drywall,,light_greige,matte_eggshell
+9531713c-47c4-4351-9afc-4a7cd51b2a04,,ceiling,painted_drywall,,white,matte
+bea1aede-33bf-42a3-943d-e69c85dbc0f1,,trim,painted_wood,,white,satin
+cbc724cc-b1dc-485b-86cb-011b1dd4c24c,,other,metal_frame_with_frosted_glass_panels,,light_gray_silver,matte
+c127fd74-abdd-4317-a504-0f147473249a,,door,painted_wood,,white,satin
+15e63b85-afe0-4c5a-8c61-56952160cf62,,door,frosted_glass,,translucent_white,matte
+2d3539f1-e12c-45d0-b5af-7cf75254502d,,wall,vinyl_siding,,light_grey,matte
+877111e4-5128-4e9e-afe0-6f9589698fde,,wall,horizontal_siding,,dark_grey,matte
+edb1879c-4683-4188-a695-2b13632a69e5,,other,asphalt_shingles,,dark_grey,matte
+8920b336-0bac-4029-830d-c1ac19c71a11,,other,composite_wood,,dark_brown,matte
+11174f45-11f4-4626-8d28-18f69a188f06,,other,metal_and_glass,,black_posts_clear_glass,matte_metal_glossy_glass
+09c25193-d28b-4f03-bd6b-a0cbdf233825,,other,metal_frame_composite_treads,,black_frame_dark_brown_treads,matte
+40af8438-ce89-47e2-9046-23f5ac6f520a,,other,wood_fence,,weathered_brown,natural
+ffd2ef2d-98ae-432b-b33d-9ac024b9f0c4,,other,natural_grass,,green,natural
+2e63ce69-e45c-46b5-89cc-1d17366ee49c,,other,various_shrubs_and_flowers,,green_and_purple,natural
+08fe6bf8-50d7-4a70-be7c-1ae6cd68cb5d,,other,asphalt_shingles,,dark_grey,matte
+259c3583-ada2-4b53-9a48-21a9f324afd3,,wall,siding,,white,matte
+8c5dae73-06b2-491e-abbf-e30360c75f11,,wall,siding,,light_grey,matte
+a9c096e9-3080-4c77-b484-1e7631eba66b,,trim,wood_composite,,dark_brown,matte
+c3222cc4-b3c4-4678-9923-ab6c18bb8c2d,,other,wood_composite,,dark_brown,matte
+1ae0621f-f645-492e-8f18-b0c08ff85b9d,,other,wood_panel,,natural_wood,matte
+9083aad5-2310-4b92-9563-e065535cd4c2,,other,natural_grass,,green,natural
+050a5162-83fe-445f-b349-4823a2a98452,,other,artificial_turf,,green,natural
+e8fd5ecf-494f-4f84-b6b3-1b10cc53b145,,other,mulch_and_plants,,brown_and_various_greens,natural
+7fa5acec-620c-4779-a0d8-4f666f3e780e,,flooring,hardwood,,light_brown,satin
+8c165a4e-b957-4c91-a245-0f85dbdeef8e,,wall,painted_drywall,,light_beige,matte
+4211626e-62f4-4a27-8aac-7ccef155e157,,ceiling,painted_drywall,,white,matte
+99848fec-f7bf-4317-9d45-927a0c3c6497,,cabinetry,painted_mdf_or_laminate,,white,satin
+fd93a290-4a11-4632-88df-91b24a9d6e39,,trim,painted_wood_or_mdf,,white,satin
+dd398093-b0ea-4214-9fef-4cd457dbd2cf,,flooring,hardwood,,light_brown,satin
+29377c73-3113-4bfd-b9c2-86acd72fbf65,,wall,drywall,,beige,matte
+da8ffdaa-f677-4305-83d8-0eef268d5c47,,ceiling,drywall,,white,matte
+a2c6802d-5538-4fc8-8021-c157df5d591b,,cabinetry,painted_wood_or_mdf,,white,satin
+3151d9bf-1954-4265-8940-eb77aba1b5d9,,flooring,hardwood,,light_brown,satin
+1151958b-92da-4d13-ad51-ab20bad5814b,,wall,painted_drywall,,greige,matte
+c444dbce-1da2-40b7-92b4-ad4e1ca3a660,,ceiling,painted_drywall,,white,matte
+d5645ab8-1b26-4611-96d0-e1e4e8695b63,,trim,painted_wood,,white,semi-gloss
+a14e5211-b3bc-43e9-b298-658e0a72d71f,,other,wood,,dark_brown,satin
+d816758c-350f-48d2-a815-5024957cce7d,,other,fabric,,off-white,upholstered
+9b0eb472-7495-4826-b3e7-2f8e3bc97267,,flooring,hardwood,,light_brown,satin
+7e6d5e0d-1119-4008-9b71-3ceff6561f3d,,wall,painted_drywall,,light_greige,matte
+eb2890bb-bd29-43db-9078-71e023669844,,ceiling,painted_drywall,,white,matte
+da143cdc-6efc-40c9-a5e7-40b88d32e947,,other,solid_wood,,medium_brown,satin
+6027669f-ef2c-4e46-8f73-1786da9995ca,,other,fabric,,off_white,matte
+c37321f0-f555-499a-9ef2-524fb33b8a42,,cabinetry,wood,,dark_brown,satin
+6a02d294-4723-4421-a4aa-fbf7db08eb4c,,trim,painted_wood,,white,satin
+d9c599ff-252e-45b4-ad9b-63e2d655397e,,flooring,hardwood,,light_brown,satin
+3c51e9dd-dd25-444d-90de-4acea90ea6ac,,wall,drywall,,light_sage_greige,matte
+63624b19-139d-4c5e-bbef-b2f9b76abfed,,ceiling,drywall,,white,matte
+ff249d94-a54b-4a7b-ae32-5c743a298efa,,trim,wood_mdf,,white,semi-gloss
+e47b97c9-6706-4e92-9b4b-9e38bc90ed01,,other,wood,,dark_brown,satin
+83e2154a-c629-4345-a417-4d716c3d027a,,other,faux_leather_or_durable_fabric,,off_white,matte
+93be42bd-e0ce-4947-8b8c-8b4117008e9c,,flooring,engineered hardwood,,light_blonde,satin
+3ef0cc31-ccbf-4330-b207-606be93f2e79,,wall,drywall,,light_beige_greige,matte
+a5a25e29-fa10-4c7b-8a0c-69457bd779fe,,ceiling,drywall,,white,matte
+8c68a6bc-3a35-4550-918c-2da9b6fe72f3,,window,painted_wood_or_vinyl,,white,satin
+f2a6af77-9ce8-4b68-b1a1-177e49b63027,,trim,painted_wood,,white,satin
+51b77258-ae05-4ede-b019-9c5851912bad,,other,tempered_glass,,clear,glossy
+31a3e0c4-c132-4424-937d-e2e0fbaf2ca9,,other,wood,,dark_brown,matte
+643099dc-255c-41a8-a157-f84c7a916025,,other,wood_veneer,,dark_brown,satin
+00fd1c2d-5c24-48f9-a6b4-013f296d3580,,flooring,hardwood,,light_oak,satin
+11c85d1f-0a34-49be-8ad0-4b7acda1dd03,,wall,drywall,,greige,matte
+8798a608-1ef6-43bb-8d05-93f095fa625d,,ceiling,drywall,,white,matte
+ab388df6-9ba9-4a23-9d8a-a0814b3a1599,,trim,wood,,white,semi-gloss
+dc38b354-ac20-4392-8c6d-55264c38ff0d,,window,vinyl,,white,matte
+3164f8ca-8166-4556-99e7-2347b86a9b06,,flooring,hardwood,,light_brown,satin
+9dd313d1-35ec-4512-a5ee-3408449de7b2,,wall,painted_drywall,,greige,eggshell
+7837701b-2c23-4d32-8cc1-d8a1cb7613f9,,ceiling,painted_drywall,,white,matte
+817a33c5-ada5-463c-95dd-45bba9618a52,,window,vinyl_or_painted_wood,,white,satin
+99ed8b7d-d477-42c1-8b83-4521b7598b6b,,door,vinyl_or_painted_wood,,white,satin
+375a8633-0ae3-4f8d-96e8-0dad9a8ea4b1,,trim,painted_wood,,white,satin
+eddc8f41-b3cf-4c3e-b1a5-6b8bd4918900,,other,tempered_glass,,clear,glossy
+42a38914-3421-43db-ad0d-368b2ff00527,,other,wood,,dark_brown_black,matte
+a3454038-c61e-448b-8f8b-2523bff39c1f,,other,fabric,,light_grey,matte
+0e98cc24-56fb-4849-8f8c-22b0e9b6229a,,other,wood,,natural_light_brown,satin
+a4515d0a-0e61-44c7-b56b-a07235118609,,other,woven_fabric,,light_grey,matte
+2d1a6b11-46cf-4e3f-a7f6-7898792ed558,,flooring,hardwood,,light_brown,satin
+e345dda8-b732-43ba-82c1-27eecfa2cc21,,flooring,carpet,,beige_grey,plush
+b6deb352-3c09-4ae1-8619-f1d758751649,,wall,drywall,,greige,matte
+ca159467-ec34-4ca1-ad60-c084c6dbb1e3,,ceiling,drywall,,white,matte
+d4fa4a8b-206d-4044-b7bf-656331067c87,,trim,painted_wood_MDF,,white,satin
+c91a312b-5743-4046-afa6-6f558f3d5740,,door,painted_wood_MDF,,white,satin
+82980445-c80f-4655-87bd-929ba3d54be5,,other,wood_and_textured_glass_acrylic,,white_frame_clear_textured_panel,satin_wood_frame_textured_panel
+379c754b-7e76-4cf5-bd5c-8bc0b933dcba,,flooring,carpet,,light_beige/greige,matte
+957945fe-dc15-4707-9a13-5cbe989cec2d,,wall,painted_drywall,,light_tan/greige,matte
+4f47d63f-4c4c-429f-b25e-230580b1e859,,ceiling,painted_drywall,,white,matte
+273a5932-2e13-4780-8d4d-693d4a4a78a6,,trim,painted_wood,,white,semi-gloss
+43d72303-8151-4b03-84e0-682f53adbad2,,window,vinyl_or_painted_wood,,white,satin
+42cc7453-a276-4a54-b295-54bd276b65d7,,other,fabric,,grey,matte
+82012305-c300-4dd7-8af4-81e5e4aaf99e,,door,painted_wood_composite,,white,satin
+69509890-44ed-497c-bee5-10bdd54ab3fb,,flooring,ceramic_or_porcelain_tile,,white/light_grey,matte
+8afa2570-4a6a-4db0-8c3d-dc3f459b3cda,,flooring,porcelain tile,,light gray,matte
+7a3d051b-1193-4236-8717-8c99da9a454c,,wall,painted drywall,,light beige,eggshell
+703bea73-6c82-49e7-9b38-9c271fccbef6,,ceiling,painted drywall,,white,matte
+e342b229-0a93-4b35-bf47-0b8c31a6a015,,wall,ceramic tile,,white,glossy
+3752d165-5cd4-4319-9852-dd3aa50cf1bc,,other,glass and stone mosaic tile,,"gray, blue, white",mixed (glossy/matte)
+6102dd8c-20d2-4c8f-b29e-e56ef1d1cb1b,,countertop,granite,,speckled light brown/gray,polished
+1fdf8b59-7db6-4fd0-9412-d1f416897215,,cabinetry,wood,,dark brown,satin
+d48a3115-2c99-4697-af38-f6832a2ec5c5,,trim,painted wood,,white,satin
+c8acb3c2-986a-459a-b051-dc81315dd1cd,,flooring,carpet,,beige,satin
+1fbed73e-3008-413c-bb5b-98138086abb7,,wall,drywall,,greige,matte
+d5b5caff-046e-4c31-a3df-969eb073c836,,ceiling,drywall,,white,matte
+4c52001f-94ee-492f-84b5-83bc3c932411,,trim,wood,,white,satin
+a2d02ecf-1e8e-414d-8d6a-b46939e7f40c,,other,wood,,white,satin
+3c6c302c-c786-4bc6-99ed-1b4332688768,,other,textured_glass,,clear,n/a
+fbcc7cc0-b96a-43dd-8d3f-f3d080079388,,other,metal,,brushed_nickel,brushed
+668bda83-0952-4c64-b15b-49dc089d94b7,,other,composite,,white,matte
+5975d265-7619-4c7f-967b-670220ce4610,,other,hardwood,,light_brown,satin
+064ae1b6-72f3-414a-a2de-ecc2c7238207,,flooring,porcelain_tile,,light_taupe,matte
+be2f8867-43a3-4e9e-9931-deeb60950cfa,,wall,painted_drywall,,light_beige,satin
+891fb738-6881-417d-a1ce-50d395e26bb9,,ceiling,painted_drywall,,white,flat
+2e697abd-e014-403f-ad61-2514b8ebe5d8,,countertop,granite_or_quartz,,white_grey_speckled,polished
+2eb9160f-ba9a-422d-810d-e54f7e0981da,,cabinetry,painted_wood_mdf,,white,satin
+609eeabe-b784-40ce-94e3-ddfcf3dce399,,other,acrylic_fiberglass_panel,,white,glossy
+e80f058d-7a5f-4139-a16a-0a52ed69db29,,trim,painted_wood_mdf,,white,satin
+ca2130bd-87bb-48da-807e-13ee82a34919,,flooring,ceramic_tile,,beige,matte
+a16f62e0-2ae7-4d51-a2d8-75b3ffa7c616,,wall,painted_drywall,,greige,matte
+1f353e57-996d-434e-b94e-bf351258a045,,ceiling,painted_drywall,,white,matte
+d5bf121d-b51b-43e7-8fde-e61101a505ec,,countertop,laminate,,light_gray_speckled,matte
+625f66f4-1549-4b5d-841a-8b1043322e0b,,cabinetry,painted_wood_or_MDF,,white,satin
+dedc4ac7-a416-4eaa-bd99-2f698211c9c5,,trim,painted_wood,,white,satin
+fac5e7dc-ce53-484f-86ba-4e5908fb3183,,flooring,concrete,,light_grey,textured
+f3b32520-bee0-4887-87e9-b255cb1532db,,wall,siding,,light_beige,matte
+36883f8a-2a68-4247-927b-7e847004daca,,ceiling,soffit_paneling,,light_beige,matte
+8d5fc811-d144-4cf4-8f13-23f0313e7585,,other,metal,,dark_grey,matte
+341c453c-8106-484c-9bd3-46deeb33a816,,other,frosted_glass,,translucent_white,matte
+b86edd89-9ee2-482a-a282-bceb733cd81d,,other,asphalt_shingle,N/A,brownish_grey,matte
+de2028f3-5e89-48fe-b4d4-fd999adfdc9e,,other,concrete,N/A,light_grey,matte
+2b6daaf9-7366-4452-aa2a-e04f609b8b16,,other,natural_grass,N/A,green,natural
+fb81e9f5-2780-4517-8474-bd7bbb61d41e,,other,various_shrubs,N/A,green,natural
+bfcab982-db28-4870-b45c-cfee4524dd65,,other,deciduous_and_evergreen_trees,N/A,green,natural
+67f9e3b7-ce2a-438c-9fd1-3434ce8af653,,other,wood,N/A,brown,matte
+13ad77a1-1b85-4cfd-ac20-f00478741f79,,other,artificial_turf,N/A,dark_green,matte
+9a8fc687-ef26-4f87-a89e-e7d58b43f053,,other,pavers,N/A,grey,matte
+d3f6816c-594c-460a-8c8d-4a739e012799,,other,asphalt_shingles,,dark_gray,matte
+de5a3bfb-5c6f-469e-afd5-74c9d15e8c7f,,other,asphalt_shingles,,brown,matte
+4277d069-e712-43d8-936d-726c9e1475d6,,other,vinyl_siding,,light_gray,matte
+bd0f5835-8616-4f62-9e02-66c2e8e03739,,other,vinyl_siding,,white,matte
+862506a8-95de-499a-886a-293dd5edb08a,,other,wood_shingles,,brown,natural
+eea21beb-5fda-4c11-874f-e463dd0c8698,,other,stone_veneer,,beige,rough
+bb6c26bf-00af-4ad5-b474-e1debe1b692c,,other,concrete,,light_gray,matte
+b25fb67d-a28b-4cb2-bfb3-3cfa9387b110,,other,asphalt,,dark_gray,matte
+2d28710f-7d2d-4d28-bb46-93ecdc61e819,,other,grass,,green,natural
+f48a53eb-f2ca-458f-8bd1-f69adbf5a30d,,other,hedges,,dark_green,natural
+a1fe3ec3-0e38-43e7-acba-f005f05a69d3,,other,gravel,,gray,rough
+973f22e1-3582-40c3-812e-5d3caf30f992,,flooring,hardwood,,light_maple,satin
+f8866ec8-98cc-45e1-b870-120212bac344,,wall,painted_drywall,,greige_beige,matte
+c956360f-e6a8-4cdd-841c-7a526d5d9da5,,ceiling,painted_drywall,,white,matte
+4815cc97-d170-405c-afe9-3dd1496a847a,,trim,painted_wood,,white,semi-gloss
+bc10c42a-030a-4f0b-9f6c-a874b4f2c860,,door,painted_wood,,white,satin
+c88af301-7c31-459d-88fc-81b69c3b808b,,other,asphalt_shingles,N/A,brown_grey,matte
+d2aa5f3f-ec10-421d-881d-70fc35e82ce2,,other,fiber_cement_lap_siding,N/A,light_blue_gray,matte
+142a48fc-c0f1-488e-8f7b-7a7ee4767c05,,other,vertical_board_and_batten_siding,N/A,white,matte
+81f2f5f7-04af-4cff-a5ed-370820327685,,other,stacked_stone_veneer,N/A,multi_tone_grey_brown,textured
+c19c5b75-e9a4-4921-9dda-3a0ae47e3f4a,,trim,painted_wood_or_composite,N/A,white,satin
+bf87bd85-48ae-4307-859d-2ed31d943b8b,,other,exposed_aggregate_concrete,N/A,grey,textured
+e17e6f5c-8a5b-4d84-8429-c965eb482424,,other,exposed_aggregate_concrete,N/A,grey,textured
+10a96779-62ca-42d8-bfea-7edc9d30d9e4,,flooring,hardwood,,light_natural_wood,satin
+1c2fa648-5ccb-4530-905a-28bf582170a0,,wall,painted_drywall,,light_greige,matte
+0a1cf4cd-fbe6-4dbb-8d14-e8d2bcc37e97,,ceiling,painted_drywall,,white,matte
+bab42f94-cf2a-4517-9f24-f1f58830ffa5,,other,wood,,dark_brown,satin
+c0fba132-ee27-4552-9ff4-0971839d7d4c,,trim,wood,,white,semi-gloss
+dae10f92-0f3f-42cf-b6f4-567533c32976,,trim,wood,,white,semi-gloss
+f16484ab-8355-4614-bd35-6f4f791b36b4,,other,fabric_blend,,cream_multi-color_pattern,low_pile
+2216001c-05e1-408e-8d8f-c2340795bf8c,,flooring,hardwood,,light brown,satin
+208a5ee9-89ab-4205-b22f-167b1fc8e831,,wall,painted drywall,,greige,eggshell
+b572bc27-a92f-407c-8c08-4f3e22d60ff5,,ceiling,painted drywall,,off-white,matte
+2395c51b-de8d-4953-913a-d7c269271344,,countertop,granite,,black/dark grey with light flecks,polished
+629b26e8-d8ff-4bcd-be71-20c5a32d989e,,backsplash,ceramic tile,,dark grey/charcoal,matte
+7150dd0d-d693-49d1-8eb6-3aa9612d749d,,cabinetry,painted wood,,off-white,satin
+fb5e6af3-37cf-4772-bcf9-a407c3882fc6,,trim,painted wood,,white,semi-gloss

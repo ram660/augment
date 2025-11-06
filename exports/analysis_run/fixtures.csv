@@ -1,0 +1,163 @@
+id,room_id,fixture_type,brand,model,style,finish,location
+3ec02314-8c7c-4ad5-946a-c94f7d7d8289,,light,,,modern,white,ceiling
+e94e9721-798b-44a1-b443-bc7e1dc9af26,,chandelier,,,traditional,brass,ceiling_over_island
+4d3d05e7-5e15-47f2-b769-6cf0eab7aadb,,faucet,,,modern,brushed_nickel,countertop
+edc50202-9721-4b8d-b258-71a4e5aa900c,,sink,,,modern,stainless_steel,countertop_undermount
+62048fcf-3c05-4aaa-8a59-d96faced3546,,light,,,recessed,white,ceiling
+18155cb5-cf8a-49aa-a365-c40f2078e54f,,light,,,transitional chandelier,dark bronze/oil-rubbed bronze,ceiling (above island)
+f247dfd1-0a75-4268-8c82-313f811f04a3,,skylight,,,modern,white frame,ceiling
+551650f4-be2d-4a43-a3ad-9b30990fb5fb,,cabinet hardware,,,bar pull,brushed nickel/stainless steel,cabinet doors and drawers
+3a0e3e54-8c99-4ced-8b11-17ef13473127,,light,,,modern,white trim,ceiling
+05880ace-e185-4a28-8cea-b6f5f7785f5f,,light,,,transitional,bronze/brass,ceiling (above island)
+fb25fa33-d567-4c98-91ec-3168e95da862,,faucet,,,modern pull-down,brushed nickel/stainless steel,countertop (sink area)
+b5fb36ff-3d41-4e6b-8ad5-1476a156b4b9,,sink,,,modern,stainless steel,countertop (undermount)
+987ed09a-a0c3-4371-8afd-204044ca95c6,,light,,,recessed,white,ceiling
+4688942c-5869-4b52-81e4-b1d45e630922,,table_lamp,,,transitional,brushed_nickel,nightstand
+ba4a00fb-2695-4d21-b5a2-8cd7d76ffd54,,light,,,recessed,white,ceiling
+361fd015-e32c-49b1-ae6a-36bbd693ba1a,,light,,,transitional,brushed_nickel_or_chrome,nightstand_left
+b8670cfd-d40d-44d7-926b-12b19a9ebd15,,light,,,transitional,brushed_nickel_or_chrome,nightstand_right
+26e6fdf7-2d80-402b-a641-818ff12a3af3,,light,,,modern,white,ceiling
+f75db32b-3153-47b9-87bb-a1d2d1699720,,curtain_rod,,,modern,dark metal,above windows
+ed5fc7fc-77eb-4185-9cdb-dc844bbcf38a,,table_lamp,,,transitional,"white shade, metallic base",bedside table
+e1b58f4d-ab89-48e7-80af-7ea607ef6f40,,light,,,modern,white,ceiling
+024e3497-a2fd-4b15-a37c-094979b9cd00,,lamp,,,modern,white_shade,nightstand
+fa0af815-3c64-45ee-9385-42de9e97fc01,,light,,,modern,white_trim,ceiling
+a3c1d44d-5b36-42c3-84f7-6c8af2481bda,,door_hardware,,,modern,brushed_nickel,door
+e66e529b-b10d-498a-854c-3be5ad8b44f5,,vanity_light,,,transitional,brushed_nickel,wall_above_mirror
+8f680edf-8c62-4401-964c-7fb6af165911,,faucet,,,transitional,brushed_nickel,countertop
+d94030ac-6780-4c8c-943e-69536448dbd0,,sink,,,undermount_oval,white_ceramic,countertop
+eeb80952-f485-47f5-8954-6e29fb854649,,toilet,,,standard_two_piece,white_ceramic,floor
+c9ff8231-f689-4676-bd83-450175f393c9,,towel_ring,,,transitional,brushed_nickel,wall_next_to_vanity
+d671e349-03b0-4360-8506-71e4b4bfddd6,,ceiling_fan_light,,,modern,white,ceiling
+ed2bf87c-f9c3-4b33-94e5-5b96ce083a37,,vanity_light,,,transitional,brushed_nickel,above_mirror
+6971341d-fe44-4dc7-8293-154a941cc590,,faucet,,,transitional,brushed_gold,countertop
+8607a0ac-a86a-4d50-861e-733dbaf72369,,sink,,,modern,white,countertop_undermount
+063e1c88-9e2b-47cb-855d-be8ae70c148a,,toilet,,,standard,white,floor
+2033c9fc-7e7f-4b81-9ffe-f1ed0f8ad7b0,,shower_enclosure,,,modern,brushed_nickel,floor_mounted
+0fd3448e-5093-4997-8132-c78c909d9b10,,towel_hook,,,modern,brushed_nickel,wall
+62a92736-b64e-4b42-ac51-9874194d671f,,towel_bar,,,modern,brushed_nickel,wall_and_shower_glass
+a2ce3c04-5ac3-469d-85e6-6b75656535dc,,toilet_paper_holder,,,modern,brushed_nickel,wall
+5dbf9301-fee8-4a33-952a-9016a92363e9,,ceiling_light,,,modern,white,ceiling
+0be5a36e-2652-4c64-8652-5a15ece37490,,light,,,modern,brushed_nickel,wall_above_mirror
+09ffc500-7226-42f4-be07-76c443f8e736,,faucet,,,modern_transitional,brushed_gold,countertop
+a4c13ff4-610f-4872-9864-34e82aaecbde,,sink,,,rectangular_undermount,white_ceramic,countertop
+61757848-351d-4eff-9ca7-c366c3eab533,,toilet,,,standard_two_piece,white_ceramic,floor
+6a9141e5-d64c-4c6c-9e77-8cab72ed483b,,shower_enclosure,,,frameless,clear_glass_with_brushed_nickel_hardware,floor_mounted
+c4a83cb5-7210-4750-886e-059d0a120770,,skylight,,,fixed,white_frame,ceiling
+3cd3d1dc-0fbd-47cf-a7b9-2587f652a4df,,towel_hook,,,modern,brushed_nickel,wall_next_to_vanity
+b221d223-abc1-4707-9bee-cfaf018484de,,toilet_paper_holder,,,modern,brushed_nickel,wall_next_to_toilet
+e75927f7-2234-4315-852c-2d07782bbb9b,,light,,,modern_flush_mount,white_base_frosted_glass,ceiling
+bc31d5a3-4054-45ac-9cd9-7d718ba179d9,,table_lamp,,,transitional,brushed_metal_base_fabric_shade,right_nightstand
+f7346b61-cccd-4ee1-9feb-577b43ae10f2,,table_lamp,,,transitional,brushed_metal_base_fabric_shade,left_nightstand
+c38acdf5-0318-46f1-add5-cd7820fd6eaf,,light,,,transitional,white,ceiling
+4155988a-6cee-442b-9b48-be415d4f2a5a,,electrical_outlet,,,standard,white,wall
+6b83072c-4bc0-40f1-b8ca-6ea4a0e91596,,ceiling_fan,,,transitional,brushed_nickel_with_wood_blades,ceiling
+30351bf4-8c64-4f6f-944f-2b66d1b82809,,recessed_light,,,modern,white,ceiling
+896d9810-22ba-4348-8c05-0e2d7451e62a,,wall_sconce,,,modern,white_with_frosted_diffuser,stairwell wall (lower level)
+50ea6bba-83bf-4a9b-9536-09bf8e05e49d,,door_handle_set,,,modern,brushed_nickel,entry_door
+719185c9-7955-43a6-9fee-618285162ae7,,light,,,modern,white,ceiling
+95f28cdf-84e5-4689-8a76-5a2a2b800e54,,ceiling_fan_with_light,,,transitional,brushed_nickel_and_wood,ceiling
+f9d2ec5b-d9cb-49ab-8c2a-08a3d56cb51a,,faucet,,,modern,brushed_nickel,countertop
+4887ce4a-9988-4747-b810-c0d9ef15609e,,sink,,,modern,stainless_steel,countertop
+fe373af3-7dcc-41c8-8478-ad23044fa1d5,,light,,,modern,white,ceiling
+f6812c38-b755-4d67-a089-47d09adefd96,,light,,,modern,white,wall
+f2029a63-ffab-466a-a27b-7a5a2962bb5b,,ceiling_fan,,,modern,white_with_wood_blades,ceiling
+efc3728f-6a82-4418-b691-9448da0a0f07,,faucet,,,modern,brushed_nickel,countertop
+6512fbde-e135-4b61-8c05-cf1315c74f9f,,sink,,,modern,stainless_steel,countertop
+f35820b7-24eb-4a7b-972f-d0eb37a236d1,,light,,,modern,brushed_nickel,wall
+ecfa4167-e411-4169-9a92-64c254a46b3d,,door_handle,,,modern,brushed_nickel,door
+b98e1257-caf6-436e-a88e-c5a94b3a0c80,,door_hinge,,,standard,brushed_nickel,door
+f024cb0d-968f-4a40-b9f6-caa1d1ca8726,,vent,,,standard,white,wall
+48609e03-fba7-4a56-bc84-622f48986e94,,light,,,transitional,brushed_nickel_or_chrome,wall_above_mirror
+fbbe4c90-60ee-4549-b712-09b1432c4cf3,,faucet,,,modern,chrome,countertop
+bdb03fdf-d040-4a47-b327-ed71b6f538c2,,sink,,,modern,white,countertop_undermount
+c3431aea-442f-4d28-a144-c390a30dc5ea,,shower_door_handle,,,modern,chrome,shower_door
+9316b48f-2d73-4110-bdef-e31d47521f4e,,light,,,transitional,brushed_nickel,above_vanity_mirror
+3a715961-ce0b-41c8-867c-6d56db648b6b,,faucet,,,transitional,chrome,countertop
+b5285c2f-6321-4c12-b238-4470f15dfa08,,sink,,,modern,white_ceramic,countertop_undermount
+a55cf419-4da4-41de-8d41-a4085d62b3d1,,shower_door_handle,,,modern,chrome,shower_door
+c6022dac-46c2-47df-97da-11410d0a72c2,,recessed_light,,,modern,white_trim,ceiling
+e622a036-d31f-4763-9fec-ccb2a9434853,,fireplace_insert,,,modern,black_metal,wall
+06ce5717-2067-47cb-9e64-784d07bf68e6,,light,,,modern,white,ceiling
+a55423ca-88c0-47ef-8144-24ee934a314e,,faucet,,,modern,chrome,countertop
+fc16dd66-0a29-44fd-bb34-cb2008c72cca,,sink,,,modern,stainless_steel,countertop
+1e360417-05b2-4396-bb33-428e69ec5b7c,,cabinet_hardware,,,modern,brushed_nickel,cabinet_doors_drawers
+736ce258-3c6b-49d1-9863-bca8b37c44d2,,light,,,modern,white_trim,ceiling
+cfc66d39-eee8-47ff-9424-c0c44f2ab492,,door_handle,,,modern,brushed_nickel_satin_chrome,door
+7a9bee28-23fb-444f-b55c-aa57aa03c554,,door_lockset,,,modern,brushed_nickel_satin_chrome,entry_door
+62d2a27b-24f2-4f47-8eae-3e3b762e3d88,,window,,,contemporary,white_frame,exterior_walls_of_all_houses
+99ad6ef8-252c-40bd-8ccb-3f2ef25ac770,,exterior_light_sconce,,,modern,dark_metal,exterior_walls_near_decks
+19ff82c0-fbf8-45b4-ac00-0d1a69abc4b3,,rain_gutter_and_downspout,,,functional,white,eaves_and_corners_of_houses
+969e3fe5-f21f-4246-9e47-32e49228c10e,,skylight,,,modern,clear_glass,roof
+deb6169e-747b-4880-a109-d718a6caaf14,,exterior_light,,,modern,dark_metal,exterior_wall_by_deck
+5bfe24d7-e320-491d-b1a8-2616803d84fa,,window,,,modern,white,wall
+83e56c1a-a296-466c-8edb-3f75bc9da0ad,,light,,,transitional,dark_bronze_and_white_glass,ceiling
+0b2d066a-2c09-4ad4-a0e4-79e9f79e62e9,,light,,,transitional,brushed_nickel,ceiling
+6c888f3e-4afa-420d-9c4b-bda4a3cb6366,,light,,,transitional,brushed_nickel_or_chrome,ceiling
+005b1ed7-2f14-4fd9-a3a2-ac88861689c4,,electrical_outlet,,,standard,white,wall
+52bc8530-d453-42cd-bc9c-9e5548c2b829,,recessed_light,,,modern,white,ceiling
+7cdc877d-f9bb-43a9-9798-1bb004e0dc0e,,ceiling_fan_with_light,,,modern,matte_black,ceiling
+220bb525-9fed-42dd-8666-5a436a8404d4,,pendant_light,,,transitional,brushed_nickel_or_chrome,ceiling_over_dining_table
+abc11486-90be-458c-89e4-43fe4f1c5448,,electric_fireplace_insert,,,modern,black_glass,media_console
+b1357ed5-0307-438e-a8d9-93d64fb3d954,,light,,,transitional,brass,ceiling
+7f3484c9-c8f9-4641-bf45-b8700de9dce8,,light,,,transitional,brushed_gold_brass,ceiling
+84151cc7-18fa-46af-aed8-c76d59e28da2,,floor_register,,,standard,white_or_brushed_nickel,floor
+cd5aa6e7-fab5-4ecd-bce8-71039c8395a2,,light,,,modern,white,ceiling
+258b4776-3684-46d2-bc57-698ab33da303,,door_hardware,,,modern,brushed_nickel,door
+597e859c-57bd-4abe-b67f-81d5b1bb1df3,,thermostat_sensor,,,modern,white,wall
+681712f6-c8af-4a86-8ac9-b761cc44caf7,,light,,,modern,white_trim,ceiling
+43a50e2e-c0c9-4b39-8667-ede815d15583,,door_handle,,,modern,brushed_nickel,door_to_bathroom
+c2088a67-b1b3-424b-b5fa-2a021cdd62f8,,towel_bar,,,modern,brushed_nickel,bathroom_wall
+237bf0cf-8699-4a4f-aebd-d8d106a51787,,curtain_rod,,,modern,brushed_nickel_or_silver,above_windows
+dce5f676-e733-4b55-b17a-0387fb1faa8d,,shower_enclosure,,,modern,brushed_nickel,left side of room
+ca2a02da-07dc-4dbc-b1ff-c447d1311e60,,toilet,,,modern,white_ceramic,floor
+f8283333-5421-487f-a430-9855b1a8f147,,bidet_sprayer,,,modern,chrome,toilet side
+9880d25b-a82a-4e89-bc3d-186ae31a7a1d,,bathtub_faucet,,,modern,brushed_nickel,countertop
+a401c550-5d36-4b3f-be76-6dbd521e6991,,recessed_light,,,modern,white,ceiling
+afff2fe9-9197-4c06-8821-d1c07adebf53,,towel_bar,,,modern,brushed_nickel,wall
+7ae7558a-0aaa-46db-b3e9-5e2c57c2f002,,toilet_paper_holder,,,simple,white_plastic,wall
+a5e38506-ecb1-438c-80fe-220713742278,,light,,,modern,white,ceiling
+c84b973c-1f3e-44b3-a6ea-990894011a7f,,ceiling_fan_with_light,,,transitional,brushed_nickel_and_wood,ceiling
+5442470c-27ef-4048-b589-789c34e83257,,light,,,modern,white_and_frosted_glass,wall
+d85aabbd-7959-46b7-855b-47c4e6b30be2,,window,,,modern,white,wall
+4de15516-bc59-4281-927e-818addc77b3c,,entry_door,,,traditional,white,wall
+8ba30f6f-0608-4e5d-844c-f4139241653b,,door_hardware,,,modern,brushed_nickel,door
+29c203d5-a2fe-4840-af7d-03a8fbd97c27,,light,,,modern,white,ceiling
+38fd21a2-a9f9-465a-a8ee-f9cbc63611d0,,exhaust_fan,,,functional,white,ceiling
+df9e1b73-7e03-4ec0-ac7d-ebbc38b9601f,,faucet,,,modern,chrome,countertop
+85229b28-0b48-4222-9de3-ae5da157a154,,sink,,,modern,white,countertop
+709d444e-cf34-4bbc-b694-225f51d576ec,,toilet,,,modern,white,floor
+43ef319e-8649-45ad-bc80-4dc655e4a86c,,bathtub,,,standard,white,floor
+9afc7d6e-5541-4faa-95a3-a43ab49e95fa,,shower_rod,,,transitional,oil_rubbed_bronze,wall
+56645561-300e-442a-94e3-f809c9d8d7a3,,door_hardware,,,modern,brushed_nickel,door
+a9484ff0-34f8-4fa3-abef-8790fb18709b,,door_hardware,Schlage,Encode_Smart_Deadbolt,modern,satin_nickel,entry_door
+77937c4c-0290-4a84-a3dc-39259f0d8c28,,cabinet_pulls,,,modern_bar,brushed_nickel,cabinet_doors_and_drawers
+5092c8b7-5bb8-4e41-a6dd-95050f2d6a1e,,electrical_outlet,,,standard,white,wall_above_countertop
+34480278-e8f8-4f65-8e10-47a4f1a994ee,,light_switch,,,toggle,white,wall_near_door
+c81b4c43-2762-4a2d-b7af-8a2e2925ec32,,thermostat_or_control_panel,,,modern_digital,white,wall_near_door
+f6405315-66c2-47f6-a533-3980f9e40182,,railing_system,,,modern,dark_grey_matte,perimeter of balcony
+331cb642-0083-4c6a-a41b-073eff74351c,,skylight,N/A,N/A,modern,dark_tint,roof
+66cbdcce-70fd-43d7-8d83-c33fc9b6e4ca,,hot_tub,N/A,N/A,contemporary,white,deck_top_middle_property
+6e5d4884-c1a9-4c89-98b7-8723cd9fabac,,storage_shed,N/A,N/A,utilitarian,painted,backyard_top_middle_property
+7b48e10c-0ec3-4362-8488-46643dcff4e7,,garage_door,,,panel,dark_gray_matte,front_facade
+2768e07f-587e-45b3-b1ac-af516acbafe1,,garage_door,,,panel,beige_matte,front_facade
+8663f27a-96e2-4329-aa84-aae56711ef90,,window,,,standard_double_hung,white_frame,house_facades
+84124b22-2be9-40bd-8c7b-ad829382a45f,,window,,,skylight,dark_frame,roof
+7b936f7b-6405-4c98-8764-e76d7fb3241d,,solar_panel_array,,,modern,black,roof
+a6d0ac63-7a68-4528-b021-9e85d941df71,,fence_gate,,,simple_bar,black_metal,property_line_driveway
+b2ef72f8-c18b-4c3a-8987-51ca5f56a448,,light,,recessed_can_light_LED,modern,white_trim,ceiling
+867c8944-9384-43ea-b569-067c87c5b3dd,,door_hardware,,lever_handle,modern_transitional,brushed_nickel,door
+c39dcd74-6dd8-47c2-a4a2-b649ad1f8604,,garage_door,N/A,N/A,contemporary_panel_with_windows,painted_beige,front_facade
+261ee820-1ebe-4ef2-9d46-741ffb85fc30,,window,N/A,N/A,double_hung_or_casement,white_frame_clear_glass,various_facade_locations
+644161ac-eece-4404-af51-b8402be9361b,,entry_door,N/A,N/A,panel_door,painted_dark_blue,front_entryway
+b13150dd-bb8d-41b4-b677-fc2d6a44e15c,,exterior_light,N/A,N/A,modern_sconce,dark_metal,above_garage_doors
+f06c59c7-daed-4db4-8d2e-59a388846b8e,,ceiling_fan_with_light,,,modern,matte_black,ceiling
+c7d61790-3d01-42b2-b9e2-af117d7e2fe3,,recessed_light,,,modern,white_trim,ceiling
+3e523be2-7ee0-4d31-9e2c-f8f5a37d36c3,,electric_fireplace_insert,,,modern,black_metal_glass,fireplace_console
+88305e60-f623-4831-9204-23d99ffbd42b,,HVAC_vent,,,standard,white,wall
+1d2e031d-3d23-4107-805d-89fe28ac2d79,,light,,,modern,white,ceiling
+4c608637-9f0c-48b4-a05e-c3e3f992c327,,chandelier,,,transitional,brushed brass/bronze,"ceiling, over island"
+2ca9a186-67f5-4cb3-b993-79de5c6b5f89,,faucet,,,modern pull-down,stainless steel/brushed nickel,island countertop
+f042c0b3-cdce-401a-b262-efa2527c42c5,,sink,,,undermount single basin,stainless steel,island countertop
+1721b66f-d2fe-4796-ab7f-4aaf58bcb61d,,cabinet_pulls,,,modern bar pulls,brushed nickel/stainless steel,cabinet doors and drawers
+a6dda718-ea58-42be-a84a-cf2c288960a5,,door_knob,,,lever,brushed nickel/satin chrome,"refrigerator panel door, exterior door"
