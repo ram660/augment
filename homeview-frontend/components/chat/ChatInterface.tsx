@@ -11,9 +11,10 @@ import type { Message, ChatRequest } from '@/lib/types/chat';
 interface ChatInterfaceProps {
   conversationId?: string;
   homeId?: string;
+  persona?: 'homeowner' | 'diy_worker' | 'contractor';
 }
 
-export function ChatInterface({ conversationId, homeId }: ChatInterfaceProps) {
+export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }: ChatInterfaceProps) {
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [streamingMessage, setStreamingMessage] = useState('');
@@ -72,29 +73,82 @@ export function ChatInterface({ conversationId, homeId }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingMessage]);
 
-  const handleSendMessage = (content: string) => {
+  const send = (content: string, scenario?: 'contractor_quotes' | 'diy_project_plan') => {
     const request: ChatRequest = {
       message: content,
       conversation_id: currentConversationId,
       home_id: homeId,
+      persona,
+      scenario,
     };
 
     sendMessageMutation.mutate(request);
   };
 
+  const handleSendMessage = (content: string) => {
+    send(content);
+  };
+
+  // Derive persisted persona/scenario from latest message metadata
+  const lastMeta = [...messages]
+    .slice()
+    .reverse()
+    .find((m) => {
+      const md: any = m.metadata || {};
+      return md.persona || md.scenario;
+    })?.metadata as any | undefined;
+
+  const persistedPersona = (lastMeta?.persona as 'homeowner' | 'diy_worker' | 'contractor') | undefined;
+  const persistedScenario = (lastMeta?.scenario as 'contractor_quotes' | 'diy_project_plan') | undefined;
+  const headerPersona = persistedPersona ?? persona;
+  const scenarioLabel =
+    persistedScenario === 'contractor_quotes'
+      ? 'Get Contractor Quotes'
+      : persistedScenario === 'diy_project_plan'
+      ? 'DIY Project Plan'
+      : undefined;
+
   // Suggested prompts for empty state
-  const suggestedPrompts = [
-    "What's the estimated cost to renovate my kitchen?",
-    "Show me modern design ideas for my living room",
-    "Find products that fit my bathroom dimensions",
-    "Create a DIY project plan for painting my bedroom",
-  ];
+  const suggestedPrompts =
+    headerPersona === 'homeowner'
+      ? [
+          "What's the estimated cost to renovate my kitchen?",
+          'Help me compare countertop materials for durability and cost',
+          'What can I do to improve energy efficiency in my home?',
+          'Suggest a modern design concept for my living room',
+        ]
+
+      : headerPersona === 'diy_worker'
+      ? [
+          'Create a step-by-step plan to paint my bedroom (walls + trim)',
+          'What tools and materials do I need to install laminate flooring?',
+          'How do I prepare a wall for tiling in a bathroom?',
+          'Give me safety tips for using a circular saw as a beginner',
+        ]
+      : [
+          'Draft a scope of work for a small bathroom remodel',
+          'Provide a high-level material takeoff for a 12x15 kitchen demo + install',
+          'Outline a client-ready proposal structure with key assumptions',
+          'What site constraints should I verify before quoting an egress window?',
+        ];
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-4 py-6">
+          {/* Conversation Header: persona + scenario */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="px-2 py-1 rounded-full bg-white border border-gray-200 text-xs text-gray-700">
+              Persona: {headerPersona === 'homeowner' ? 'Homeowner' : headerPersona === 'diy_worker' ? 'DIY Worker' : 'Contractor'}
+            </span>
+            {scenarioLabel && (
+              <span className="px-2 py-1 rounded-full bg-white border border-gray-200 text-xs text-gray-700">
+                Scenario: {scenarioLabel}
+              </span>
+            )}
+          </div>
+
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -106,18 +160,37 @@ export function ChatInterface({ conversationId, homeId }: ChatInterfaceProps) {
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-2">
+
                 AI Assistant Ready
               </h3>
               <p className="text-gray-600 mb-8">
                 Ask me anything about your home, designs, costs, or projects
               </p>
 
+              {/* Scenario Templates */}
+              <div className="flex flex-wrap gap-3 justify-center mb-6">
+                <button
+                  onClick={() => send('Help me prepare to get contractor quotes for my project.', 'contractor_quotes')}
+                  className="px-4 py-2 rounded-full border-2 border-primary text-primary hover:bg-primary hover:text-white transition-colors"
+                  disabled={isStreaming}
+                >
+                  Get Contractor Quotes
+                </button>
+                <button
+                  onClick={() => send('Create a DIY project plan tailored to my home.', 'diy_project_plan')}
+                  className="px-4 py-2 rounded-full border-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-colors"
+                  disabled={isStreaming}
+                >
+                  Create My DIY Project Plan
+                </button>
+              </div>
+
               {/* Suggested Prompts */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto">
                 {suggestedPrompts.map((prompt, index) => (
                   <button
                     key={index}
-                    onClick={() => handleSendMessage(prompt)}
+                    onClick={() => send(prompt)}
                     className="p-4 bg-white border-2 border-gray-200 rounded-xl text-left hover:border-primary hover:shadow-md transition-all"
                     disabled={isStreaming}
                   >
@@ -145,6 +218,7 @@ export function ChatInterface({ conversationId, homeId }: ChatInterfaceProps) {
                         {streamingMessage}
                         <span className="inline-block w-1 h-4 bg-primary ml-1 animate-pulse"></span>
                       </p>
+
                     </div>
                   </div>
                 </div>
@@ -178,6 +252,24 @@ export function ChatInterface({ conversationId, homeId }: ChatInterfaceProps) {
         disabled={isStreaming}
         placeholder={homeId ? "Ask about this home..." : "Ask me anything..."}
       />
+
+      {/* Persona-specific Prompt Chips (below input) */}
+      <div className="bg-white px-4 pb-4">
+        <div className="max-w-4xl mx-auto flex flex-wrap gap-2">
+          {suggestedPrompts.slice(0, 6).map((prompt, idx) => (
+            <button
+              key={idx}
+              onClick={() => send(prompt)}
+              disabled={isStreaming}
+              className="px-3 py-1.5 rounded-full text-xs border border-gray-300 text-gray-700 hover:border-primary hover:text-primary transition-colors"
+              title={prompt}
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }

@@ -26,11 +26,13 @@ class Conversation(Base):
     # Conversation metadata
     title = Column(String(255), nullable=True)  # Auto-generated from first message
     summary = Column(Text, nullable=True)  # AI-generated summary
-    
+    persona = Column(String(20), nullable=True)  # 'homeowner' | 'diy_worker' | 'contractor'
+    scenario = Column(String(50), nullable=True)  # 'contractor_quotes' | 'diy_project_plan'
+
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
     message_count = Column(Integer, default=0, nullable=False)
-    
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -56,6 +58,8 @@ class Conversation(Base):
             "home_id": str(self.home_id) if self.home_id else None,
             "title": self.title,
             "summary": self.summary,
+            "persona": self.persona,
+            "scenario": self.scenario,
             "is_active": self.is_active,
             "message_count": self.message_count,
             "created_at": self.created_at.isoformat() if self.created_at else None,

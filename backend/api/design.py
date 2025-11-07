@@ -13,7 +13,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 import io
-from PIL import Image
+import base64
+import uuid
+from PIL import Image, ImageChops, ImageStat
 
 from backend.database import get_async_db
 from backend.models import RoomImage, Room, TransformationType, TransformationStatus
@@ -23,7 +25,30 @@ import time
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/design", tags=["design"])
+router = APIRouter(prefix="/api/v1/design", tags=["design"])
+
+
+# Heuristic extraction of requested change categories from user prompt
+# Keeps logic minimal to avoid false promises; used to guide grounded product suggestions
+_DEF_CHANGE_KEYWORDS = {
+    "paint": ["paint", "wall color", "walls"],
+    "flooring": ["floor", "flooring", "hardwood", "tile", "carpet", "vinyl", "laminate"],
+    "lighting": ["light", "lighting", "pendant", "sconce", "chandelier"],
+    "cabinets": ["cabinet", "cabinets"],
+    "countertops": ["countertop", "countertops"],
+    "backsplash": ["backsplash"],
+    "decor": ["decor", "rug", "art", "curtain", "drape", "vase"],
+    "furniture": ["sofa", "couch", "chair", "table", "furniture"],
+}
+
+def _extract_requested_changes(prompt_text: str) -> List[str]:
+    t = (prompt_text or "").lower()
+    cats: List[str] = []
+    for cat, keys in _DEF_CHANGE_KEYWORDS.items():
+        if any(k in t for k in keys):
+            cats.append(cat)
+    # Deduplicate and sort for stability
+    return sorted(set(cats))
 
 
 # Request/Response Models
@@ -115,6 +140,61 @@ class TransformationResponse(BaseModel):
     image_urls: List[str] = []  # Placeholder URLs for now
 
 
+
+class PromptedTransformRequest(BaseModel):
+    """Request model for prompt-driven transformation from media selection."""
+    room_image_id: UUID = Field(..., description="ID of the room image to transform")
+    prompt: str = Field(..., description="User's freeform transformation prompt")
+    num_variations: int = Field(default=2, ge=1, le=4, description="Number of variations to generate")
+    enable_grounding: bool = Field(default=False, description="If true, use Google Search grounding to suggest products")
+
+
+class PromptedTransformResponse(BaseModel):
+    """Response model for prompt-driven transformations including analysis."""
+    success: bool
+    message: str
+    transformation_id: UUID
+    num_variations: int
+    transformation_type: str
+    original_image_id: UUID
+    status: str
+    image_urls: List[str] = []
+    summary: Dict[str, Any] = {}
+    products: List[Dict[str, Any]] = []
+    sources: List[str] = []
+
+class UploadPromptedTransformRequest(BaseModel):
+    """Request model for prompt-driven transformation from an uploaded image (no Digital Twin required)."""
+    image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
+    prompt: str = Field(..., description="User's freeform transformation prompt")
+    num_variations: int = Field(default=2, ge=1, le=4, description="Number of variations to generate")
+    enable_grounding: bool = Field(default=False, description="If true, use Google Search grounding to suggest products")
+
+
+class PromptedTransformUploadResponse(BaseModel):
+    """Response model for prompt-driven transformations from uploaded image."""
+    success: bool
+    message: str
+    num_variations: int
+    image_urls: List[str] = []
+    summary: Dict[str, Any] = {}
+    products: List[Dict[str, Any]] = []
+    sources: List[str] = []
+
+
+
+class AnalyzeImageRequest(BaseModel):
+    """Analyze an existing room image and suggest ideas."""
+    room_image_id: UUID
+    max_ideas: int = Field(default=4, ge=1, le=6)
+
+
+class AnalyzeImageResponse(BaseModel):
+    """Summary and suggested idea chips for the selected image."""
+    summary: Dict[str, Any] = {}
+    ideas: List[str] = []
+    ideas_by_theme: Dict[str, List[str]] = {}
+
 class TransformationHistoryItem(BaseModel):
     """Model for transformation history item."""
     id: UUID
@@ -140,22 +220,22 @@ class TransformationHistoryResponse(BaseModel):
 async def load_room_image(room_image_id: UUID, db: AsyncSession) -> RoomImage:
     """Load room image from database."""
     from sqlalchemy import select
-    
+
     result = await db.execute(
         select(RoomImage).where(RoomImage.id == room_image_id)
     )
     room_image = result.scalar_one_or_none()
-    
+
     if not room_image:
         raise HTTPException(status_code=404, detail=f"Room image {room_image_id} not found")
-    
+
     return room_image
 
 
 async def get_image_from_url(image_url: str) -> Image.Image:
     """Download and load image from URL."""
     import httpx
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(image_url)
         response.raise_for_status()
@@ -170,7 +250,7 @@ async def transform_paint(
 ):
     """
     Transform wall paint color while preserving everything else.
-    
+
     This endpoint changes only the wall paint color and finish, keeping all
     furniture, flooring, fixtures, and other elements unchanged.
     """
@@ -267,14 +347,14 @@ async def transform_flooring(
 ):
     """
     Transform flooring while preserving everything else.
-    
+
     This endpoint changes only the flooring material and style, keeping all
     walls, furniture, fixtures, and other elements unchanged.
     """
     try:
         room_image = await load_room_image(request.room_image_id, db)
         image = await get_image_from_url(room_image.image_url)
-        
+
         service = DesignTransformationService()
         transformed_images = await service.transform_flooring(
             image=image,
@@ -283,7 +363,7 @@ async def transform_flooring(
             target_color=request.target_color,
             preserve_rugs=request.preserve_rugs
         )
-        
+
         return TransformationResponse(
             success=True,
             message=f"Successfully generated {len(transformed_images)} flooring transformation variations",
@@ -291,7 +371,7 @@ async def transform_flooring(
             transformation_type="flooring",
             original_image_id=request.room_image_id
         )
-        
+
     except Exception as e:
         logger.error(f"Error transforming flooring: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -304,14 +384,14 @@ async def transform_cabinets(
 ):
     """
     Transform cabinet color/finish while preserving everything else.
-    
+
     This endpoint changes only the cabinet color and finish, keeping all
     countertops, backsplash, appliances, and other elements unchanged.
     """
     try:
         room_image = await load_room_image(request.room_image_id, db)
         image = await get_image_from_url(room_image.image_url)
-        
+
         service = DesignTransformationService()
         transformed_images = await service.transform_cabinets(
             image=image,
@@ -320,7 +400,7 @@ async def transform_cabinets(
             target_style=request.target_style,
             preserve_hardware=request.preserve_hardware
         )
-        
+
         return TransformationResponse(
             success=True,
             message=f"Successfully generated {len(transformed_images)} cabinet transformation variations",
@@ -328,7 +408,7 @@ async def transform_cabinets(
             transformation_type="cabinets",
             original_image_id=request.room_image_id
         )
-        
+
     except Exception as e:
         logger.error(f"Error transforming cabinets: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -343,7 +423,7 @@ async def transform_countertops(
     try:
         room_image = await load_room_image(request.room_image_id, db)
         image = await get_image_from_url(room_image.image_url)
-        
+
         service = DesignTransformationService()
         transformed_images = await service.transform_countertops(
             image=image,
@@ -352,7 +432,7 @@ async def transform_countertops(
             target_pattern=request.target_pattern,
             edge_profile=request.edge_profile
         )
-        
+
         return TransformationResponse(
             success=True,
             message=f"Successfully generated {len(transformed_images)} countertop transformation variations",
@@ -360,7 +440,7 @@ async def transform_countertops(
             transformation_type="countertops",
             original_image_id=request.room_image_id
         )
-        
+
     except Exception as e:
         logger.error(f"Error transforming countertops: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -375,7 +455,7 @@ async def transform_backsplash(
     try:
         room_image = await load_room_image(request.room_image_id, db)
         image = await get_image_from_url(room_image.image_url)
-        
+
         service = DesignTransformationService()
         transformed_images = await service.transform_backsplash(
             image=image,
@@ -384,7 +464,7 @@ async def transform_backsplash(
             target_color=request.target_color,
             grout_color=request.grout_color
         )
-        
+
         return TransformationResponse(
             success=True,
             message=f"Successfully generated {len(transformed_images)} backsplash transformation variations",
@@ -392,7 +472,7 @@ async def transform_backsplash(
             transformation_type="backsplash",
             original_image_id=request.room_image_id
         )
-        
+
     except Exception as e:
         logger.error(f"Error transforming backsplash: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -590,27 +670,544 @@ async def delete_transformation(
     """
     Delete a transformation and all its generated images.
 
-    This will also delete the images from cloud storage (when implemented).
+    Also deletes images from cloud storage if a storage backend is configured.
     """
     try:
         storage_service = TransformationStorageService()
-
-        deleted = await storage_service.delete_transformation(
-            db=db,
-            transformation_id=transformation_id
-        )
-
+        deleted = await storage_service.delete_transformation(db=db, transformation_id=transformation_id)
         if not deleted:
-            raise HTTPException(status_code=404, detail=f"Transformation {transformation_id} not found")
-
-        return {
-            "success": True,
-            "message": f"Transformation {transformation_id} deleted successfully"
-        }
-
+            raise HTTPException(status_code=404, detail="Transformation not found")
+        return {"success": True, "message": "Transformation deleted", "transformation_id": transformation_id}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error deleting transformation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transform-prompted", response_model=PromptedTransformResponse)
+async def transform_prompted(
+    request: PromptedTransformRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Transform a room image based on a freeform prompt selected from media.
+
+    - Applies strict preservation rules (only change requested items)
+    - Generates 1-4 variations via Gemini image editing (gemini-2.5-flash-image)
+    - Analyzes the first result to summarize colors/materials/styles
+    - Optionally suggests products using Google Search grounding
+    """
+    start_time = time.time()
+    storage_service = TransformationStorageService()
+
+    try:
+        # Load DB entities
+        room_image = await load_room_image(request.room_image_id, db)
+        # Fetch room for context (room name)
+        from sqlalchemy import select
+        room = None
+        try:
+            result = await db.execute(select(Room).where(Room.id == room_image.room_id))
+            room = result.scalar_one_or_none()
+        except Exception:
+            room = None
+
+        # Create transformation record
+        transformation = await storage_service.create_transformation(
+            db=db,
+            room_image_id=request.room_image_id,
+            transformation_type=TransformationType.CUSTOM,
+            parameters={
+                "prompt": request.prompt,
+                "source": "media_prompt"
+            },
+            num_variations=request.num_variations,
+        )
+
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.PROCESSING,
+        )
+
+        # Load original image
+        image = await get_image_from_url(room_image.image_url)
+
+        # Build combined instructions with preservation rules
+        service = DesignTransformationService()
+        combined_prompt = f"""
+Transform this exact room photo according to the user's request below.
+Only modify what is asked. Keep all other elements unchanged.
+
+USER REQUEST:
+{request.prompt}
+
+{service.CORE_PRESERVATION_RULES}
+"""
+
+        # Generate images
+        transformed_images = await service._generate_transformation(
+            image=image,
+            prompt=combined_prompt,
+            num_variations=request.num_variations,
+        )
+
+        # Drift guard: compute drift vs original; if too high, re-generate once with stricter instructions
+        def _compute_drift(a_img: Image.Image, b_img: Image.Image) -> float:
+            try:
+                a2 = a_img.convert("L").resize((128, 128))
+                b2 = b_img.convert("L").resize((128, 128))
+                diff = ImageChops.difference(a2, b2)
+                stat = ImageStat.Stat(diff)
+                return min(1.0, max(0.0, (stat.mean[0] / 255.0)))
+            except Exception:
+                return 0.0
+
+        DRIFT_THRESHOLD = 0.18
+        drift_scores = []
+        try:
+            drift_scores = [_compute_drift(image, img) for img in transformed_images]
+        except Exception:
+            drift_scores = []
+
+        strict_regen_applied = False
+        if drift_scores and max(drift_scores) > DRIFT_THRESHOLD:
+            strict_block = """
+STRICT MODE (apply only if drift is high):
+- Make only the smallest necessary pixel-level change to fulfill the request.
+- Do NOT add or remove any objects; do NOT move anything; do NOT change lighting or perspective.
+- If any part is ambiguous, leave it unchanged.
+"""
+            strict_prompt = combined_prompt + "\n" + strict_block
+            try:
+                transformed_images = await service._generate_transformation(
+                    image=image,
+                    prompt=strict_prompt,
+                    num_variations=request.num_variations,
+                )
+                strict_regen_applied = True
+                try:
+                    drift_scores = [_compute_drift(image, img) for img in transformed_images]
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.warning(f"Strict-mode regeneration failed: {e}")
+
+        # Save generated images
+        transformation_images = await storage_service.save_transformation_images(
+            db=db,
+            transformation_id=transformation.id,
+            images=transformed_images,
+        )
+
+        # Post-process: analyze first image
+        summary = {}
+        try:
+            first_img = transformed_images[0] if transformed_images else None
+            if first_img:
+                room_hint = getattr(room, "name", None)
+                summary = await service.gemini.analyze_design(first_img, room_hint=room_hint)
+        except Exception as e:
+            logger.warning(f"Design analysis failed: {e}")
+            summary = {}
+
+        # Analyze original image for diff-aware grounding (best-effort)
+        original_summary: Dict[str, Any] = {}
+        try:
+            room_hint = getattr(room, "name", None)
+            original_summary = await service.gemini.analyze_design(image, room_hint=room_hint)
+        except Exception as e:
+            logger.warning(f"Original image analysis failed: {e}")
+            original_summary = {}
+
+        # Optional: grounded product suggestions using requested changes + diffs
+        products: List[Dict[str, Any]] = []
+        sources: List[str] = []
+        if request.enable_grounding and summary:
+            try:
+                grounding_input = {
+                    "user_prompt": request.prompt,
+                    "requested_changes": _extract_requested_changes(request.prompt),
+                    "original_summary": original_summary,
+                    "new_summary": summary,
+                }
+                grounding = await service.gemini.suggest_products_with_grounding(grounding_input, max_items=5)
+                products = grounding.get("products", []) or []
+                sources = grounding.get("sources", []) or []
+            except Exception as e:
+                logger.warning(f"Grounded suggestion failed: {e}")
+
+        # Update status to completed
+        processing_time = int(time.time() - start_time)
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.COMPLETED,
+            processing_time_seconds=processing_time,
+        )
+
+        message_text = f"Generated {len(transformed_images)} variations"
+        if 'strict_regen_applied' in locals() and strict_regen_applied:
+            if drift_scores and max(drift_scores) > DRIFT_THRESHOLD:
+                message_text += " (strict mode applied; high drift persists — consider refining the prompt)"
+            else:
+                message_text += " (strict mode applied due to high drift)"
+
+        return PromptedTransformResponse(
+            success=True,
+            message=message_text,
+            transformation_id=transformation.id,
+            num_variations=len(transformed_images),
+            transformation_type="custom",
+            original_image_id=request.room_image_id,
+            status="completed",
+            image_urls=[img.image_url for img in transformation_images],
+            summary=summary or {},
+            products=products,
+            sources=sources,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in transform_prompted: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.post("/transform-prompted-upload", response_model=PromptedTransformUploadResponse)
+async def transform_prompted_upload(
+    request: UploadPromptedTransformRequest,
+):
+    """
+    Transform an uploaded room image (no Digital Twin) based on a freeform prompt.
+
+    - Accepts a base64 data URL or raw base64 image bytes
+    - Applies strict preservation rules (only change requested items)
+    - Generates 1-4 variations via Gemini image editing (gemini-2.5-flash-image)
+    - Stores results to cloud storage when configured, else returns data URLs
+    - Analyzes the first result to summarize colors/materials/styles
+    - Optionally suggests products using Google Search grounding
+    """
+    try:
+        # Decode the incoming image (supports data URL or raw base64)
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Build combined instructions with preservation rules
+        service = DesignTransformationService()
+        combined_prompt = f"""
+Transform this exact room photo according to the user's request below.
+Only modify what is asked. Keep all other elements unchanged.
+
+USER REQUEST:
+{request.prompt}
+
+{service.CORE_PRESERVATION_RULES}
+"""
+
+        # Generate images with Imagen (per official Gemini docs)
+        transformed_images = await service._generate_transformation(
+            image=image,
+            prompt=combined_prompt,
+            num_variations=request.num_variations,
+        )
+
+        # Drift guard: compute drift vs original; if too high, re-generate once with stricter instructions
+        def _compute_drift(a_img: Image.Image, b_img: Image.Image) -> float:
+            try:
+                a2 = a_img.convert("L").resize((128, 128))
+                b2 = b_img.convert("L").resize((128, 128))
+                diff = ImageChops.difference(a2, b2)
+                stat = ImageStat.Stat(diff)
+                return min(1.0, max(0.0, (stat.mean[0] / 255.0)))
+            except Exception:
+                return 0.0
+
+        DRIFT_THRESHOLD = 0.18
+        drift_scores = []
+        try:
+            drift_scores = [_compute_drift(image, img) for img in transformed_images]
+        except Exception:
+            drift_scores = []
+
+        strict_regen_applied = False
+        if drift_scores and max(drift_scores) > DRIFT_THRESHOLD:
+            strict_block = """
+STRICT MODE (apply only if drift is high):
+- Make only the smallest necessary pixel-level change to fulfill the request.
+- Do NOT add or remove any objects; do NOT move anything; do NOT change lighting or perspective.
+- If any part is ambiguous, leave it unchanged.
+"""
+            strict_prompt = combined_prompt + "\n" + strict_block
+            try:
+                transformed_images = await service._generate_transformation(
+                    image=image,
+                    prompt=strict_prompt,
+                    num_variations=request.num_variations,
+                )
+                strict_regen_applied = True
+                try:
+                    drift_scores = [_compute_drift(image, img) for img in transformed_images]
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.warning(f"Strict-mode regeneration (upload) failed: {e}")
+
+        # Prefer hosted URLs when storage is configured; else data URLs
+        image_urls: List[str] = []
+        storage_service = TransformationStorageService()
+        uploaded_session_id = str(uuid.uuid4())
+
+        for idx, img in enumerate(transformed_images, start=1):
+            # Try uploading to storage backends
+            if storage_service.storage_client is not None:
+                try:
+                    # Upload using the same organized path as transformations
+                    upload_url = storage_service.storage_client.upload_transformation_image(
+                        image=img,
+                        transformation_id=uploaded_session_id,
+                        variation_number=idx,
+                        file_extension="jpg",
+                    )
+
+                    # Prefer a signed URL for GCS to ensure browser access; otherwise use returned URL
+                    url: Optional[str] = upload_url
+                    if getattr(storage_service, "storage_type", "").lower() == "gcs" and getattr(storage_service.storage_client, "generate_signed_url", None):
+                        try:
+                            blob_path = f"transformations/{uploaded_session_id}/variation_{idx}.jpg"
+                            url = storage_service.storage_client.generate_signed_url(blob_path)
+                        except Exception:
+                            # Keep the original upload_url if signing fails
+                            url = upload_url
+                    image_urls.append(url)
+                    continue
+                except Exception as e:
+                    logger.warning(f"Upload to storage failed, falling back to data URL: {e}")
+            # Data URL fallback
+            try:
+                buf = io.BytesIO()
+                img = img.convert("RGB")
+                img.save(buf, format="JPEG", quality=90)
+                encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+                image_urls.append(f"data:image/jpeg;base64,{encoded}")
+            except Exception as e:
+                logger.warning(f"Failed to encode generated image: {e}")
+
+        # Post-process: analyze first image
+        summary: Dict[str, Any] = {}
+        try:
+            first_img = transformed_images[0] if transformed_images else None
+            if first_img:
+                summary = await service.gemini.analyze_design(first_img)
+        except Exception as e:
+            logger.warning(f"Design analysis (upload) failed: {e}")
+            summary = {}
+
+        # Analyze original image for diff-aware grounding (best-effort)
+        original_summary: Dict[str, Any] = {}
+        try:
+            original_summary = await service.gemini.analyze_design(image)
+        except Exception as e:
+            logger.warning(f"Original image analysis (upload) failed: {e}")
+            original_summary = {}
+
+        # Optional: grounded product suggestions using requested changes + diffs
+        products: List[Dict[str, Any]] = []
+        sources: List[str] = []
+        if request.enable_grounding and summary:
+            try:
+                grounding_input = {
+                    "user_prompt": request.prompt,
+                    "requested_changes": _extract_requested_changes(request.prompt),
+                    "original_summary": original_summary,
+                    "new_summary": summary,
+                }
+                grounding = await service.gemini.suggest_products_with_grounding(grounding_input, max_items=5)
+                products = grounding.get("products", []) or []
+                sources = grounding.get("sources", []) or []
+            except Exception as e:
+                logger.warning(f"Grounded suggestion (upload) failed: {e}")
+
+        message_text = f"Generated {len(image_urls)} variations"
+        if 'strict_regen_applied' in locals() and strict_regen_applied:
+            if drift_scores and max(drift_scores) > DRIFT_THRESHOLD:
+                message_text += " (strict mode applied; high drift persists - consider refining the prompt)"
+            else:
+                message_text += " (strict mode applied due to high drift)"
+
+        return PromptedTransformUploadResponse(
+            success=True,
+            message=message_text,
+            num_variations=len(image_urls),
+            image_urls=image_urls,
+            summary=summary or {},
+            products=products,
+            sources=sources,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in transform_prompted_upload: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Analyze uploaded image (no Digital Twin) for idea chips
+class AnalyzeUploadedImageRequest(BaseModel):
+    image_data_url: str
+    max_ideas: int = Field(default=4, ge=1, le=6)
+
+
+@router.post("/analyze-uploaded-image", response_model=AnalyzeImageResponse)
+async def analyze_uploaded_image(
+    request: AnalyzeUploadedImageRequest,
+):
+    """Analyze an uploaded image and return summary + categorized ideas."""
+    try:
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+
+        image = Image.open(io.BytesIO(image_bytes))
+
+        service = DesignTransformationService()
+        summary = await service.gemini.analyze_design(image)
+
+        max_ideas = max(1, min(request.max_ideas, 6))
+        ideas_by_theme: Dict[str, List[str]] = await service.gemini.generate_transformation_ideas(
+            summary=summary or {}, room_hint=None, max_ideas=max_ideas
+        )
+
+        ordered_keys = ["color", "flooring", "lighting", "decor", "other"]
+        ideas: List[str] = []
+        for key in ordered_keys:
+            for idea in ideas_by_theme.get(key, []) or []:
+                if len(ideas) >= max_ideas:
+                    break
+                if idea not in ideas:
+                    ideas.append(idea)
+
+        if not ideas:
+            try:
+                colors = summary.get("colors") or []
+                if isinstance(colors, list) and colors:
+                    c = colors[0] or {}
+                    color_name = c.get("name") or c.get("hex")
+                    if color_name:
+                        ideas.append(f"Change walls to {color_name}")
+                materials = [str(m).lower() for m in (summary.get("materials") or [])]
+                mats = " ".join(materials)
+                if "oak" in mats:
+                    ideas.append("Replace with light oak hardwood")
+                if "tile" in mats:
+                    ideas.append("Update flooring with patterned tile")
+                styles = summary.get("styles") or []
+                if isinstance(styles, list) and styles:
+                    style0 = str(styles[0])
+                    ideas.append(f"Add {style0} decor elements")
+                    ideas.append(f"Use a {style0} palette")
+            except Exception:
+                pass
+            if not ideas:
+                ideas.extend(["Warm neutral palette", "Add matte-black pendant lights"])
+            ideas = ideas[:max_ideas]
+
+        return AnalyzeImageResponse(summary=summary or {}, ideas=ideas, ideas_by_theme=ideas_by_theme or {})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"analyze_uploaded_image failed: {e}", exc_info=True)
+        return AnalyzeImageResponse(summary={}, ideas=[])
+
+
+
+@router.post("/analyze-image", response_model=AnalyzeImageResponse)
+async def analyze_image(
+    request: AnalyzeImageRequest,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Analyze a selected room image and return a structured summary plus suggested idea chips.
+    """
+    try:
+        # Load the room image and its room for context
+        room_image = await load_room_image(request.room_image_id, db)
+        from sqlalchemy import select
+        room = None
+        try:
+            result = await db.execute(select(Room).where(Room.id == room_image.room_id))
+            room = result.scalar_one_or_none()
+        except Exception:
+            room = None
+
+        # Fetch the image
+        image = await get_image_from_url(room_image.image_url)
+
+        # Analyze with Gemini vision per official docs
+        service = DesignTransformationService()
+        room_hint = getattr(room, "name", None)
+        summary = await service.gemini.analyze_design(image, room_hint=room_hint)
+
+        # Generate room-aware, multi-step ideas grouped by theme via Gemini text model
+        max_ideas = max(1, min(request.max_ideas, 6))
+        ideas_by_theme: Dict[str, List[str]] = await service.gemini.generate_transformation_ideas(
+            summary=summary or {}, room_hint=room_hint, max_ideas=max_ideas
+        )
+
+        # Flatten into a simple chips list (preserving category ordering)
+        ordered_keys = ["color", "flooring", "lighting", "decor", "other"]
+        ideas: List[str] = []
+        for key in ordered_keys:
+            for idea in ideas_by_theme.get(key, []) or []:
+                if len(ideas) >= max_ideas:
+                    break
+                if idea not in ideas:
+                    ideas.append(idea)
+
+        # Fallback heuristics if the model returned nothing
+        if not ideas:
+            def add_idea(text: str):
+                if text and text not in ideas:
+                    ideas.append(text)
+            try:
+                colors = summary.get("colors") or []
+                if isinstance(colors, list) and colors:
+                    c = colors[0] or {}
+                    color_name = c.get("name") or c.get("hex")
+                    if color_name:
+                        add_idea(f"Change walls to {color_name}")
+                materials = [str(m).lower() for m in (summary.get("materials") or [])]
+                mats = " ".join(materials)
+                if "oak" in mats:
+                    add_idea("Replace with light oak hardwood")
+                if "tile" in mats:
+                    add_idea("Update flooring with patterned tile")
+                if "marble" in mats:
+                    add_idea("Add marble accents on surfaces")
+                styles = summary.get("styles") or []
+                if isinstance(styles, list) and styles:
+                    style0 = str(styles[0])
+                    add_idea(f"Add {style0} decor elements")
+                    add_idea(f"Use a {style0} palette")
+            except Exception:
+                pass
+            add_idea("Warm neutral palette")
+            add_idea("Add matte-black pendant lights")
+            ideas = ideas[:max_ideas]
+
+        return AnalyzeImageResponse(summary=summary or {}, ideas=ideas, ideas_by_theme=ideas_by_theme or {})
+    except Exception as e:
+        logger.warning(f"analyze_image failed: {e}", exc_info=True)
+        # Degrade gracefully with empty ideas so the UI still renders
+        return AnalyzeImageResponse(summary={}, ideas=[])
 

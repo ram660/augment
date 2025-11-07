@@ -89,7 +89,7 @@ const TransformationPanel = ({ roomImage, onTransform, onClose }) => {
         num_variations: numVariations
       };
 
-      const response = await fetch(`http://localhost:8000/api/design/transform-${selectedType}`, {
+      const response = await fetch(`/api/design/transform-${selectedType}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -165,7 +165,7 @@ const TransformationPanel = ({ roomImage, onTransform, onClose }) => {
       <div className="transformation-content">
         {/* Room Image Preview */}
         <div className="room-preview">
-          <img src={roomImage.url} alt="Room" />
+          <img src={roomImage.image_url || roomImage.url} alt="Room" />
           <p className="room-name">{roomImage.name || 'Room Image'}</p>
         </div>
 

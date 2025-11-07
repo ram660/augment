@@ -14,6 +14,13 @@ export default function HomesPage() {
     queryKey: ['homes'],
     queryFn: homesAPI.getHomes,
   });
+  const formatAddress = (addr: any) => {
+    if (!addr) return "";
+    if (typeof addr === "string") return addr;
+    const parts = [addr.street, addr.city, addr.province, addr.postal_code, addr.country].filter(Boolean);
+    return parts.join(", ");
+  };
+
 
   if (isLoading) {
     return (
@@ -72,7 +79,7 @@ export default function HomesPage() {
                   <CardTitle className="text-xl">{home.name}</CardTitle>
                   <CardDescription className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
-                    {home.address}
+                    {formatAddress(home.address)}
                   </CardDescription>
                 </CardHeader>
 

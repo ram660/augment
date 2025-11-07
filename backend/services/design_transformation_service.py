@@ -52,8 +52,20 @@ CRITICAL PRESERVATION RULES (MUST FOLLOW):
 8. Keep all unchanged elements in their exact original state
 9. Match the original photo's quality, resolution, and style
 10. Ensure photorealistic output that looks like a real photograph
+
+STRICT NEGATIVE INSTRUCTIONS (DO NOT DO THESE):
+- Do NOT add any new objects, furniture, decor, fixtures, or architectural elements
+- Do NOT remove or hide existing objects (unless explicitly requested in the prompt)
+- Do NOT move or reposition any existing objects or camera viewpoint
+- Do NOT alter surfaces or materials outside the requested change scope
+- Do NOT change wall/ceiling/floor colors or textures unless explicitly requested
+- Do NOT change window/door positions, sizes, or styles; preserve exterior views
+- Do NOT retouch, blur, beautify, or alter people/pets if present
+- Do NOT change aspect ratio, crop, or reframe the image
+- Do NOT introduce style drift; keep the overall look consistent with the original
+- Do NOT over-smooth or apply global filters; keep natural grain and detail intact
 """
-    
+
     def __init__(self, gemini_client: Optional[GeminiClient] = None):
         """Initialize Design Transformation Service."""
         self.gemini = gemini_client or GeminiClient()
@@ -255,13 +267,14 @@ OUTPUT REQUIREMENTS:
             List of transformed images
         """
         try:
-            # Generate images using Gemini Imagen
-            generated_images = await self.gemini.generate_image(
+            # Edit original image using Gemini native image editing (gemini-2.5-flash-image)
+            # Official docs: https://ai.google.dev/gemini-api/docs/image-generation
+            generated_images = await self.gemini.edit_image(
                 prompt=prompt,
                 reference_image=image,
                 num_images=num_variations
             )
-            
+
             logger.info(f"Generated {len(generated_images)} transformation variations")
             return generated_images
             

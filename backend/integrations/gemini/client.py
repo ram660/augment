@@ -17,10 +17,9 @@ import os
 import logging
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
-import base64
 from io import BytesIO
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import google.generativeai as genai
 from google.generativeai import GenerativeModel
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
@@ -34,7 +33,9 @@ class GeminiConfig(BaseModel):
     api_key: str
     default_text_model: str = "gemini-2.5-flash"
     default_vision_model: str = "gemini-2.5-flash"
-    default_image_gen_model: str = "gemini-2.5-flash"
+    # Use the native Gemini image model for generation + editing per official docs
+    # https://ai.google.dev/gemini-api/docs/image-generation
+    default_image_gen_model: str = "gemini-2.5-flash-image"
     default_embedding_model: str = "models/text-embedding-004"
     default_temperature: float = 0.7
     default_max_tokens: Optional[int] = None
@@ -45,18 +46,18 @@ class GeminiConfig(BaseModel):
 class GeminiClient:
     """
     Unified client for all Gemini API interactions.
-    
+
     Provides methods for:
     - Text generation and chat
     - Image analysis and understanding
     - Image generation and editing
     - Text embeddings for semantic search
     """
-    
+
     def __init__(self, config: Optional[GeminiConfig] = None):
         """
         Initialize Gemini client.
-        
+
         Args:
             config: Gemini configuration. If None, uses environment variables.
         """
@@ -65,17 +66,17 @@ class GeminiClient:
             if not api_key:
                 raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY environment variable must be set")
             config = GeminiConfig(api_key=api_key)
-        
+
         self.config = config
-        
+
         # Configure the API
         genai.configure(api_key=config.api_key)
-        
+
         # Initialize models
         self._init_models()
-        
+
         logger.info("Gemini client initialized successfully")
-    
+
     def _init_models(self):
         """Initialize Gemini models."""
         # Safety settings
@@ -87,25 +88,25 @@ class GeminiClient:
                 HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
                 HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
             }
-        
+
         # Text model
         self.text_model = GenerativeModel(
             model_name=self.config.default_text_model,
             safety_settings=self.safety_settings
         )
-        
+
         # Vision model (for complex visual reasoning)
         self.vision_model = GenerativeModel(
             model_name=self.config.default_vision_model,
             safety_settings=self.safety_settings
         )
-        
+
         # Image generation model
         self.image_gen_model = GenerativeModel(
             model_name=self.config.default_image_gen_model,
             safety_settings=self.safety_settings
         )
-    
+
     async def generate_text(
         self,
         prompt: str,
@@ -115,13 +116,13 @@ class GeminiClient:
     ) -> str:
         """
         Generate text using Gemini.
-        
+
         Args:
             prompt: Input prompt
             temperature: Sampling temperature (0.0 to 1.0)
             max_tokens: Maximum tokens to generate
             system_instruction: System instruction for the model
-            
+
         Returns:
             Generated text
         """
@@ -131,7 +132,7 @@ class GeminiClient:
             }
             if max_tokens:
                 generation_config["max_output_tokens"] = max_tokens
-            
+
             # Create model with system instruction if provided
             model = self.text_model
             if system_instruction:
@@ -140,18 +141,73 @@ class GeminiClient:
                     safety_settings=self.safety_settings,
                     system_instruction=system_instruction
                 )
-            
+
             response = model.generate_content(
                 prompt,
                 generation_config=generation_config
             )
-            
+
             return response.text
-            
+
         except Exception as e:
             logger.error(f"Error generating text: {str(e)}")
             raise
-    
+
+    async def generate_text_stream(
+        self,
+        prompt: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        system_instruction: Optional[str] = None
+    ):
+        """
+        Stream text generation using Gemini.
+
+        Yields incremental text chunks as they arrive from the model.
+        Based on the official Gemini API streaming pattern using google.generativeai.
+        """
+        try:
+            generation_config = {
+                "temperature": temperature or self.config.default_temperature,
+            }
+            if max_tokens:
+                generation_config["max_output_tokens"] = max_tokens
+
+            # Create model with system instruction if provided
+            model = self.text_model
+            if system_instruction:
+                model = GenerativeModel(
+                    model_name=self.config.default_text_model,
+                    safety_settings=self.safety_settings,
+                    system_instruction=system_instruction,
+                )
+
+            # Start streaming
+            stream = model.generate_content(
+                prompt,
+                generation_config=generation_config,
+                stream=True,
+            )
+
+            for chunk in stream:
+                try:
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        # Yield raw text chunk
+                        yield text
+                except Exception as ie:
+                    logger.debug(f"Error parsing stream chunk: {ie}")
+
+            # Ensure stream is fully resolved
+            try:
+                stream.resolve()
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.error(f"Error streaming text: {str(e)}", exc_info=True)
+            raise
+
     async def analyze_image(
         self,
         image: Union[str, Path, Image.Image, bytes],
@@ -160,34 +216,222 @@ class GeminiClient:
     ) -> str:
         """
         Analyze an image with Gemini Vision.
-        
+
         Args:
             image: Image as file path, PIL Image, or bytes
             prompt: Analysis prompt
             temperature: Sampling temperature
-            
+
         Returns:
             Analysis result as text
         """
         try:
             # Load image
             pil_image = self._load_image(image)
-            
+
             generation_config = {
                 "temperature": temperature or 0.3,  # Lower temp for analysis
             }
-            
+
             response = self.vision_model.generate_content(
                 [prompt, pil_image],
                 generation_config=generation_config
             )
-            
+
             return response.text
-            
+
         except Exception as e:
             logger.error(f"Error analyzing image: {str(e)}")
             raise
-    
+    async def analyze_design(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        room_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Analyze a room design image and return a structured summary.
+
+        Returns a dict with keys like: colors, materials, styles, description.
+        Uses the official image understanding pattern with Gemini vision.
+        """
+        try:
+            pil_image = self._load_image(image)
+
+            analysis_prompt = (
+                "Analyze this interior room photo and return ONLY a compact JSON object with: "
+                "colors (array of {name, hex?}), materials (array), styles (array of tags), "
+                "and a short description (<=40 words)."
+            )
+            if room_hint:
+                analysis_prompt += f" Room context: {room_hint}."
+
+            response = self.vision_model.generate_content([
+                analysis_prompt,
+                pil_image,
+            ], generation_config={"temperature": 0.2})
+
+            text = getattr(response, "text", "") or "{}"
+            # Best-effort JSON parse; tolerate stray text
+            import json, re
+            match = re.search(r"\{[\s\S]*\}", text)
+            payload = json.loads(match.group(0)) if match else {}
+            return payload if isinstance(payload, dict) else {"raw": text}
+        except Exception as e:
+            logger.error(f"Error in analyze_design: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def suggest_products_with_grounding(
+        self,
+        summary_or_grounding: Dict[str, Any],
+        max_items: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        Suggest products with Google Search grounding enabled.
+
+        Accepts either a simple design summary dict or a diff-aware payload with keys:
+        {
+          "user_prompt": str,
+          "requested_changes": [str],
+          "original_summary": { ... },
+          "new_summary": { ... }
+        }
+
+        Uses Gemini text model with tools=[{"google_search": {}}] per official docs:
+        https://ai.google.dev/gemini-api/docs/google-search
+        """
+        try:
+            # Create a model with Google Search grounding tool enabled
+            grounded_model = GenerativeModel(
+                model_name=self.config.default_text_model,
+                safety_settings=self.safety_settings,
+                tools=[{"google_search": {}}],
+            )
+
+            # Build targeted prompt
+            payload = summary_or_grounding or {}
+            is_diff = isinstance(payload, dict) and (
+                "original_summary" in payload or "new_summary" in payload
+            )
+            if is_diff:
+                user_prompt = payload.get("user_prompt", "")
+                changes = payload.get("requested_changes", []) or []
+                original = payload.get("original_summary", {})
+                new = payload.get("new_summary", {})
+                changes_txt = ", ".join(changes) if changes else "unspecified"
+                prompt = (
+                    "You are a grounded product recommender for interior design. Based on the user's"
+                    " requested change(s), suggest up to "
+                    f"{max_items} purchasable products that enable the SPECIFIC transformation.\n\n"
+                    f"USER REQUEST: {user_prompt}\n"
+                    f"CHANGE CATEGORIES: {changes_txt}\n\n"
+                    f"ORIGINAL ROOM SUMMARY (JSON):\n{original}\n\n"
+                    f"TRANSFORMED ROOM SUMMARY (JSON):\n{new}\n\n"
+                    "Return ONLY JSON with schema: {\n"
+                    "  \"products\": [ { \"name\": str, \"category\": str, \"brief_reason\": str, \"price_estimate\"?: str, \"url\": str } ],\n"
+                    "  \"sources\": [ str ]\n"
+                    "}."
+                )
+            else:
+                prompt = (
+                    "Given this interior design summary, suggest up to "
+                    f"{max_items} purchasable products that match the style/colors/materials. "
+                    "For each product, include: name, category, brief_reason, price_estimate (if found), "
+                    "and a url from a reputable retailer. Return ONLY JSON with schema: {\n"
+                    "  \"products\": [ { \"name\": str, \"category\": str, \"brief_reason\": str, \"price_estimate\"?: str, \"url\": str } ],\n"
+                    "  \"sources\": [ str ]\n"
+                    "}.\n\n"
+                    f"Design summary JSON:\n{payload}"
+                )
+
+            resp = grounded_model.generate_content(prompt, generation_config={"temperature": 0.3})
+            text = getattr(resp, "text", "") or "{}"
+
+            import json, re
+            match = re.search(r"\{[\s\S]*\}", text)
+            parsed = json.loads(match.group(0)) if match else {}
+            # Attach any grounding metadata if available
+            try:
+                gm = getattr(resp, "grounding_metadata", None)
+                if gm and isinstance(parsed, dict):
+                    parsed.setdefault("grounding_metadata", str(gm))
+            except Exception:
+                pass
+            return parsed if isinstance(parsed, dict) else {"raw": text}
+        except Exception as e:
+            logger.error(f"Error in suggest_products_with_grounding: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def generate_transformation_ideas(
+        self,
+        summary: Dict[str, Any],
+        room_hint: Optional[str] = None,
+        max_ideas: int = 6,
+    ) -> Dict[str, List[str]]:
+        """
+        Generate concise, multi-step transformation ideas grouped by theme.
+
+        Uses the official Gemini text generation API (google.generativeai) and returns ONLY JSON
+        in the schema:
+        {
+          "color": ["..."],
+          "flooring": ["..."],
+          "lighting": ["..."],
+          "decor": ["..."],
+          "other": ["..."]
+        }
+        Each idea should be an imperative suggestion (5-12 words), specific and non-duplicative.
+        """
+        try:
+            prompt = (
+                "You are an interior design assistant. Based on the following structured "
+                "room summary, propose concise transformation ideas grouped by theme. "
+                "Focus on actionable changes the user could request in an image edit. "
+                "Return ONLY JSON with keys color, flooring, lighting, decor, other.\n\n"
+                f"Room type (hint): {room_hint or 'unknown'}\n"
+                f"Summary JSON:\n{summary}\n\n"
+                "Constraints:\n"
+                f"- Cap total ideas to about {max_ideas} across all groups.\n"
+                "- 5-12 words per idea, avoid redundancy, be practical.\n"
+                "- Color group should include palettes or paint changes when relevant.\n"
+                "- Flooring group should include material/finish suggestions when relevant.\n"
+                "- Lighting group should include fixture type/finish/warmth suggestions when relevant.\n"
+                "- Decor group can include accents, textiles, hardware, art.\n"
+                "- Use 'other' only if something does not fit the above."
+            )
+
+            resp = self.text_model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.4}
+            )
+            text = getattr(resp, "text", "") or "{}"
+
+            import json, re
+            match = re.search(r"\{[\s\S]*\}", text)
+            payload = json.loads(match.group(0)) if match else {}
+
+            # Normalize into expected keys
+            if not isinstance(payload, dict):
+                return {"color": [], "flooring": [], "lighting": [], "decor": [], "other": []}
+            for key in ["color", "flooring", "lighting", "decor", "other"]:
+                if key not in payload or not isinstance(payload.get(key), list):
+                    payload[key] = []
+            # Trim to max_ideas overall
+            total = 0
+            for k in ["color", "flooring", "lighting", "decor", "other"]:
+                arr = []
+                for idea in payload[k]:
+                    if total >= max_ideas:
+                        break
+                    if isinstance(idea, str) and idea.strip():
+                        arr.append(idea.strip())
+                        total += 1
+                payload[k] = arr
+            return payload
+        except Exception as e:
+            logger.error(f"Error in generate_transformation_ideas: {e}", exc_info=True)
+            return {"color": [], "flooring": [], "lighting": [], "decor": [], "other": []}
+
+
     async def generate_image(
         self,
         prompt: str,
@@ -248,7 +492,7 @@ Only modify the specific elements mentioned in the transformation request."""
 
                 # Generate with reference image
                 response = client.models.generate_images(
-                    model='imagen-4.0-generate-001',  # Using Imagen 4.0 for best quality
+                    model='imagen-4.0-generate-001',
                     prompt=full_prompt,
                     config=config
                 )
@@ -278,21 +522,21 @@ Only modify the specific elements mentioned in the transformation request."""
         except Exception as e:
             logger.error(f"Error generating image with Imagen: {str(e)}", exc_info=True)
             raise
-    
+
     async def get_embeddings(self, texts: Union[str, List[str]]) -> List[List[float]]:
         """
         Generate embeddings for text(s).
-        
+
         Args:
             texts: Single text or list of texts
-            
+
         Returns:
             List of embedding vectors
         """
         try:
             if isinstance(texts, str):
                 texts = [texts]
-            
+
             embeddings = []
             for text in texts:
                 result = genai.embed_content(
@@ -301,13 +545,13 @@ Only modify the specific elements mentioned in the transformation request."""
                     task_type="retrieval_document"
                 )
                 embeddings.append(result['embedding'])
-            
+
             return embeddings
-            
+
         except Exception as e:
             logger.error(f"Error generating embeddings: {str(e)}")
             raise
-    
+
     async def chat(
         self,
         messages: List[Dict[str, str]],
@@ -316,12 +560,12 @@ Only modify the specific elements mentioned in the transformation request."""
     ) -> str:
         """
         Multi-turn chat with Gemini.
-        
+
         Args:
             messages: List of message dicts with 'role' and 'content'
             temperature: Sampling temperature
             system_instruction: System instruction
-            
+
         Returns:
             Assistant's response
         """
@@ -329,7 +573,7 @@ Only modify the specific elements mentioned in the transformation request."""
             generation_config = {
                 "temperature": temperature or self.config.default_temperature,
             }
-            
+
             # Create chat session
             model = self.text_model
             if system_instruction:
@@ -338,30 +582,95 @@ Only modify the specific elements mentioned in the transformation request."""
                     safety_settings=self.safety_settings,
                     system_instruction=system_instruction
                 )
-            
+
             chat = model.start_chat(history=[])
-            
-            # Add message history
-            for msg in messages[:-1]:  # All but last message
-                if msg["role"] == "user":
-                    chat.send_message(msg["content"])
-            
-            # Send final message and get response
-            response = chat.send_message(messages[-1]["content"])
-            
+
+            # Add prior messages (only user messages are sent)
+            for msg in (messages or [])[:-1]:
+                if msg.get("role") == "user":
+                    chat.send_message(msg.get("content", ""), generation_config=generation_config)
+
+            # Send the final user turn and return text
+            final_text = (messages or [{"content": ""}])[-1].get("content", "")
+            response = chat.send_message(final_text, generation_config=generation_config)
             return response.text
-            
         except Exception as e:
             logger.error(f"Error in chat: {str(e)}")
             raise
-    
+
+    async def edit_image(
+        self,
+        prompt: str,
+        reference_image: Union[str, Path, Image.Image, bytes],
+        num_images: int = 1,
+        aspect_ratio: Optional[str] = None,
+    ) -> List[Image.Image]:
+        """
+        Edit an image using native Gemini image generation (gemini-2.5-flash-image).
+
+        Official docs: https://ai.google.dev/gemini-api/docs/image-generation
+        """
+        try:
+            from google import genai as google_genai
+            from google.genai import types
+
+            client = google_genai.Client(api_key=self.config.api_key)
+
+            pil_image = self._load_image(reference_image)
+
+            gen_config = types.GenerateContentConfig(
+                response_modalities=["Image"],
+            )
+            if aspect_ratio:
+                try:
+                    gen_config.image_config = types.ImageConfig(aspect_ratio=aspect_ratio)
+                except Exception:
+                    pass
+
+            contents = [pil_image, prompt]
+
+            images: List[Image.Image] = []
+            count = max(1, int(num_images or 1))
+            for _ in range(count):
+                response = client.models.generate_content(
+                    model=self.config.default_image_gen_model,
+                    contents=contents,
+                    config=gen_config,
+                )
+                try:
+                    for part in getattr(response.candidates[0].content, "parts", []) or []:
+                        inline = getattr(part, "inline_data", None)
+                        if inline and getattr(inline, "data", None):
+                            images.append(Image.open(BytesIO(inline.data)))
+                except Exception:
+                    pass
+
+            logger.info(f"Edited image with native Gemini model; produced {len(images)} variation(s)")
+            return images
+        except Exception as e:
+            logger.error(f"Error editing image with Gemini native model: {e}", exc_info=True)
+            raise
+
+            for msg in messages[:-1]:  # All but last message
+                if msg["role"] == "user":
+                    chat.send_message(msg["content"])
+
+            # Send final message and get response
+            response = chat.send_message(messages[-1]["content"])
+
+            return response.text
+
+        except Exception as e:
+            logger.error(f"Error in chat: {str(e)}")
+            raise
+
     def _load_image(self, image: Union[str, Path, Image.Image, bytes]) -> Image.Image:
         """
         Load image from various formats.
-        
+
         Args:
             image: Image as file path, PIL Image, or bytes
-            
+
         Returns:
             PIL Image
         """
@@ -373,14 +682,14 @@ Only modify the specific elements mentioned in the transformation request."""
             return Image.open(BytesIO(image))
         else:
             raise ValueError(f"Unsupported image type: {type(image)}")
-    
+
     def count_tokens(self, text: str) -> int:
         """
         Count tokens in text.
-        
+
         Args:
             text: Input text
-            
+
         Returns:
             Token count
         """

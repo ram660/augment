@@ -14,7 +14,7 @@ const TransformationHistory = ({ roomImageId, onSelectTransformation, onClose })
     setIsLoading(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/api/design/transformations/${roomImageId}`
+        `/api/design/transformations/${roomImageId}`
       );
 
       if (!response.ok) {

@@ -24,24 +24,26 @@ logger = logging.getLogger(__name__)
 
 class ChatState(BaseWorkflowState, total=False):
     """State for chat workflow."""
-    
+
     # Input
     user_message: str
     home_id: Optional[str]
     conversation_id: str
     user_id: Optional[str]
-    
+    persona: Optional[str]
+    scenario: Optional[str]
+
     # Context retrieval
     retrieved_context: Optional[Dict[str, Any]]
     context_sources: List[str]
-    
+
     # Conversation history
     conversation_history: List[Dict[str, str]]
-    
+
     # Response generation
     ai_response: Optional[str]
     response_metadata: Dict[str, Any]
-    
+
     # Intent classification
     intent: Optional[str]
     requires_action: bool
@@ -104,21 +106,42 @@ class ChatWorkflow:
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the chat workflow."""
         try:
-            # Create initial state
-            state = self.orchestrator.create_initial_state(
-                user_message=input_data.get("user_message"),
-                home_id=input_data.get("home_id"),
-                conversation_id=input_data.get("conversation_id", str(uuid.uuid4())),
-                user_id=input_data.get("user_id"),
-                conversation_history=input_data.get("conversation_history", []),
-                context_sources=[],
-                requires_action=False,
-                suggested_actions=[],
-                response_metadata={}
-            )
-            
+            # Create initial state as ChatState TypedDict
+            conversation_id = input_data.get("conversation_id", str(uuid.uuid4()))
+            state: ChatState = {
+                # Workflow metadata
+                "workflow_id": str(uuid.uuid4()),
+                "workflow_name": self.orchestrator.workflow_name,
+                "status": WorkflowStatus.PENDING,
+                "started_at": datetime.utcnow().isoformat(),
+                "completed_at": None,
+                "current_node": None,
+                "visited_nodes": [],
+                "retry_count": 0,
+                "max_retries": self.orchestrator.max_retries,
+                "errors": [],
+                "warnings": [],
+                "result": None,
+                "metadata": {},
+                # Chat-specific fields
+                "user_message": input_data.get("user_message", ""),
+                "home_id": input_data.get("home_id"),
+                "conversation_id": conversation_id,
+                "user_id": input_data.get("user_id"),
+                "persona": input_data.get("persona"),
+                "scenario": input_data.get("scenario"),
+                "conversation_history": input_data.get("conversation_history", []),
+                "context_sources": [],
+                "requires_action": False,
+                "suggested_actions": [],
+                "response_metadata": {},
+                "retrieved_context": None,
+                "ai_response": None,
+                "intent": None
+            }
+
             # Execute workflow
-            config = {"configurable": {"thread_id": state["conversation_id"]}}
+            config = {"configurable": {"thread_id": conversation_id}}
             final_state = await self.graph.ainvoke(state, config=config)
             
             return final_state
@@ -299,7 +322,13 @@ Return JSON:
             history = state.get("conversation_history", [])
 
             # Build comprehensive prompt
-            prompt = self._build_response_prompt(user_message, context, history)
+            prompt = self._build_response_prompt(
+                user_message,
+                context,
+                history,
+                state.get("persona"),
+                state.get("scenario")
+            )
 
             # Generate response
             response = await self.gemini_client.generate_text(
@@ -360,6 +389,24 @@ Return JSON:
                     "agent": "design_studio"
                 })
 
+            # Persona/Scenario specific suggestions
+            p = state.get("persona")
+            s = state.get("scenario")
+            if p == "homeowner" or s == "contractor_quotes":
+                suggested_actions.append({
+                    "action": "start_contractor_quotes",
+                    "label": "Get Contractor Quotes",
+                    "description": "Prepare a brief and collect bids from contractors",
+                    "agent": "contractor_quotes"
+                })
+            if p == "diy_worker" or s == "diy_project_plan":
+                suggested_actions.append({
+                    "action": "create_diy_plan",
+                    "label": "Create My DIY Project Plan",
+                    "description": "Get a step-by-step plan with tools and materials",
+                    "agent": "diy_planner"
+                })
+
             # Always suggest exploring the digital twin
             if state.get("home_id"):
                 suggested_actions.append({
@@ -413,7 +460,11 @@ Return JSON:
                 role="user",
                 content=user_message,
                 intent=intent,
-                metadata=state.get("response_metadata", {}),
+                metadata={
+                    **state.get("response_metadata", {}),
+                    "persona": state.get("persona"),
+                    "scenario": state.get("scenario"),
+                },
                 context_sources=context_sources
             )
 
@@ -425,6 +476,8 @@ Return JSON:
                     content=ai_response,
                     metadata={
                         "suggested_actions": state.get("suggested_actions", []),
+                        "persona": state.get("persona"),
+                        "scenario": state.get("scenario"),
                         **state.get("response_metadata", {})
                     },
                     context_sources=context_sources
@@ -459,6 +512,8 @@ Return JSON:
                 "context_sources": state.get("context_sources", []),
                 "metadata": {
                     **state.get("response_metadata", {}),
+                    "persona": state.get("persona"),
+                    "scenario": state.get("scenario"),
                     "execution_time_seconds": execution_time,
                     "nodes_visited": len(state.get("visited_nodes", [])),
                     "errors": len(state.get("errors", []))
@@ -478,7 +533,9 @@ Return JSON:
         self,
         user_message: str,
         context: Optional[Dict[str, Any]],
-        history: List[Dict[str, str]]
+        history: List[Dict[str, str]],
+        persona: Optional[str] = None,
+        scenario: Optional[str] = None
     ) -> str:
         """Build comprehensive prompt for response generation."""
         prompt_parts = []
@@ -503,6 +560,31 @@ Guidelines:
 - Always prioritize accuracy over speculation
 - Keep responses concise but informative (aim for 150-300 words unless more detail is requested)
 """)
+
+        # Persona-specific guidance
+        if persona:
+            if persona == "homeowner":
+                prompt_parts.append(
+                    "\nPersona: Homeowner. Be supportive and practical. Offer both contractor-quote and DIY pathways neutrally; do not force contractor handoff unless asked."
+                )
+            elif persona == "diy_worker":
+                prompt_parts.append(
+                    "\nPersona: DIY Worker. Emphasize step-by-step guidance, safety, tool lists, and material breakdowns. Avoid contractor handoff unless explicitly requested."
+                )
+            elif persona == "contractor":
+                prompt_parts.append(
+                    "\nPersona: Contractor. Focus on scope of work, estimating considerations, material takeoffs, timelines, and client-ready clarity."
+                )
+
+        # Scenario-specific guidance
+        if scenario == "contractor_quotes":
+            prompt_parts.append(
+                "\nScenario: Get Contractor Quotes. Gather key project details (scope, dimensions, materials, constraints), propose a concise brief the user can send to contractors, and list follow-up questions."
+            )
+        elif scenario == "diy_project_plan":
+            prompt_parts.append(
+                "\nScenario: DIY Project Plan. Produce a concise, ordered plan with tools, materials, estimated effort, safety notes, and dependencies."
+            )
 
         # Add context if available
         if context and context.get("context_text"):

@@ -50,11 +50,11 @@ export default function ChatPage() {
               </div>
             ) : (
               conversations.map((conversation) => (
-                <button
+                <div
                   key={conversation.id}
                   onClick={() => setSelectedConversationId(conversation.id)}
                   className={cn(
-                    'w-full p-3 rounded-lg text-left transition-colors group',
+                    'w-full p-3 rounded-lg text-left transition-colors group cursor-pointer',
                     selectedConversationId === conversation.id
                       ? 'bg-primary text-white'
                       : 'hover:bg-gray-100'
@@ -78,6 +78,39 @@ export default function ChatPage() {
                       )}>
                         {formatDate(conversation.updated_at)}
                       </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {conversation.persona && (
+                          <span
+                            className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] border',
+                              selectedConversationId === conversation.id
+                                ? 'border-blue-200 text-blue-100'
+                                : 'border-gray-200 text-gray-600'
+                            )}
+                          >
+                            {conversation.persona === 'homeowner'
+                              ? 'Homeowner'
+                              : conversation.persona === 'diy_worker'
+                              ? 'DIY Worker'
+                              : 'Contractor'}
+                          </span>
+                        )}
+                        {conversation.scenario && (
+                          <span
+                            className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] border',
+                              selectedConversationId === conversation.id
+                                ? 'border-blue-200 text-blue-100'
+                                : 'border-gray-200 text-gray-600'
+                            )}
+                          >
+                            {conversation.scenario === 'contractor_quotes'
+                              ? 'Contractor Quotes'
+                              : 'DIY Project Plan'}
+                          </span>
+                        )}
+                      </div>
+
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
@@ -106,7 +139,7 @@ export default function ChatPage() {
                       </button>
                     </div>
                   </div>
-                </button>
+                </div>
               ))
             )}
           </div>

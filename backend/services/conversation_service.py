@@ -35,7 +35,9 @@ class ConversationService:
         self,
         user_id: Optional[str] = None,
         home_id: Optional[str] = None,
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        persona: Optional[str] = None,
+        scenario: Optional[str] = None,
     ) -> Conversation:
         """Create a new conversation thread."""
         try:
@@ -44,21 +46,95 @@ class ConversationService:
                 user_id=uuid.UUID(user_id) if user_id else None,
                 home_id=uuid.UUID(home_id) if home_id else None,
                 title=title,
+                persona=persona,
+                scenario=scenario,
                 is_active=True,
                 message_count=0
             )
-            
+
             self.db.add(conversation)
             await self.db.commit()
             await self.db.refresh(conversation)
-            
+
             logger.info(f"Created conversation: {conversation.id}")
             return conversation
-            
+
+        except Exception as e:
+            # Fallback for dev DBs without new columns: retry without persona/scenario
+            await self.db.rollback()
+            try:
+                conversation = Conversation(
+                    id=uuid.uuid4(),
+                    user_id=uuid.UUID(user_id) if user_id else None,
+                    home_id=uuid.UUID(home_id) if home_id else None,
+                    title=title,
+                    is_active=True,
+                    message_count=0
+                )
+                self.db.add(conversation)
+                await self.db.commit()
+                await self.db.refresh(conversation)
+                logger.warning(
+                    "Created conversation without persona/scenario (columns likely missing). "
+                    "Run alembic upgrade head to add them."
+                )
+                return conversation
+            except Exception as e2:
+                await self.db.rollback()
+                logger.error(f"Failed to create conversation (fallback): {e2}", exc_info=True)
+                raise
+
+    async def update_conversation_attributes(
+        self,
+        conversation_id: str,
+        *,
+        persona: Optional[str] = None,
+        scenario: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> Optional[Conversation]:
+        """Update mutable conversation attributes like persona, scenario, title."""
+        try:
+            conversation = await self.get_conversation(conversation_id)
+            if not conversation:
+                return None
+
+            updated = False
+            if persona is not None and conversation.persona != persona:
+                conversation.persona = persona
+                updated = True
+            if scenario is not None and conversation.scenario != scenario:
+                conversation.scenario = scenario
+                updated = True
+            if title is not None and conversation.title != title:
+                conversation.title = title
+                updated = True
+
+            if updated:
+                conversation.updated_at = datetime.utcnow()
+                await self.db.commit()
+                await self.db.refresh(conversation)
+            return conversation
         except Exception as e:
             await self.db.rollback()
-            logger.error(f"Failed to create conversation: {e}", exc_info=True)
-            raise
+            logger.error(f"Failed to update conversation attributes: {e}", exc_info=True)
+            return None
+
+    async def update_conversation_title(self, conversation_id: str, user_message: str) -> Optional[Conversation]:
+        """Set a conversation title, generating one from the first user message if needed."""
+        try:
+            conversation = await self.get_conversation(conversation_id)
+            if not conversation:
+                return None
+            if not conversation.title:
+                conversation.title = await self._generate_title(user_message)
+                conversation.updated_at = datetime.utcnow()
+                await self.db.commit()
+                await self.db.refresh(conversation)
+            return conversation
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Failed to update conversation title: {e}", exc_info=True)
+            return None
     
     async def get_conversation(
         self,

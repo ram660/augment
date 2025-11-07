@@ -86,9 +86,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     # Rate limits: (capacity, refill_rate per second)
     RATE_LIMITS = {
-        "anonymous": (10, 10 / 60),      # 10 requests per minute
-        "authenticated": (60, 60 / 60),  # 60 requests per minute
-        "admin": (120, 120 / 60),        # 120 requests per minute
+        "anonymous": (100, 100 / 60),      # 100 requests per minute (increased for development)
+        "authenticated": (200, 200 / 60),  # 200 requests per minute
+        "admin": (500, 500 / 60),          # 500 requests per minute
     }
     
     # Endpoints exempt from rate limiting

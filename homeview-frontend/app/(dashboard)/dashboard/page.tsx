@@ -17,10 +17,10 @@ const quickActions = [
     bgColor: 'bg-blue-100',
   },
   {
-    title: 'AI Chat',
-    description: 'Ask questions about your home',
+    title: 'Assistant',
+    description: 'Chat first + quick transformations',
     icon: MessageSquare,
-    href: '/dashboard/chat',
+    href: '/dashboard/assistant',
     color: 'text-green-600',
     bgColor: 'bg-green-100',
   },
