@@ -28,14 +28,14 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
     enabled: !!currentConversationId,
   });
 
-  // Send message mutation
+  // Send message mutation (supports multipart for file uploads)
   const sendMessageMutation = useMutation({
-    mutationFn: async (request: ChatRequest) => {
+    mutationFn: async (request: ChatRequest & { files?: File[] }) => {
       setIsStreaming(true);
       setStreamingMessage('');
 
       return new Promise<Message>((resolve, reject) => {
-        chatAPI.streamMessage(
+        chatAPI.streamMessageMultipart(
           request,
           // onChunk
           (chunk) => {
@@ -77,7 +77,6 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
     const request: ChatRequest = {
       message: content,
       conversation_id: currentConversationId,
-      home_id: homeId,
       persona,
       scenario,
     };
@@ -85,8 +84,15 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
     sendMessageMutation.mutate(request);
   };
 
-  const handleSendMessage = (content: string) => {
-    send(content);
+  const handleSendMessage = (content: string, files?: File[]) => {
+    const request: ChatRequest & { files?: File[] } = {
+      message: content,
+      conversation_id: currentConversationId,
+      persona,
+      files,
+    };
+
+    sendMessageMutation.mutate(request);
   };
 
   // Derive persisted persona/scenario from latest message metadata
@@ -203,7 +209,11 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
             /* Messages List */
             <div className="space-y-6">
               {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onQuestionClick={(question) => send(question)}
+                />
               ))}
 
               {/* Streaming Message */}
@@ -250,7 +260,7 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
       <MessageInput
         onSend={handleSendMessage}
         disabled={isStreaming}
-        placeholder={homeId ? "Ask about this home..." : "Ask me anything..."}
+        placeholder="Ask me anything..."
       />
 
       {/* Persona-specific Prompt Chips (below input) */}

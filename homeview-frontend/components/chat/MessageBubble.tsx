@@ -6,9 +6,10 @@ import type { Message } from '@/lib/types/chat';
 
 interface MessageBubbleProps {
   message: Message;
+  onQuestionClick?: (question: string) => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onQuestionClick }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
 
@@ -57,6 +58,26 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
 
+        {/* Metadata - Attachments (PDFs / files) */}
+        {message.metadata?.attachments && message.metadata.attachments.length > 0 && (
+          <div className="flex flex-col gap-2 w-full">
+            {message.metadata.attachments
+              .filter((att) => att.type === 'pdf' || (att.content_type && att.content_type.includes('pdf')) || att.type === 'file')
+              .map((att, idx) => (
+                <a
+                  key={idx}
+                  href={att.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline bg-blue-50 border border-blue-200 rounded-md px-3 py-2 w-fit"
+                >
+                  <span>📄 {att.filename || 'Attachment'}</span>
+                </a>
+              ))}
+          </div>
+        )}
+
+
         {/* Metadata - Designs */}
         {message.metadata?.designs && message.metadata.designs.length > 0 && (
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm">
@@ -80,6 +101,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             <p className="text-green-700 mt-1">Estimate available</p>
           </div>
         )}
+        {/* Suggested Follow-up Questions */}
+        {isAssistant && message.metadata?.suggested_questions && message.metadata.suggested_questions.length > 0 && (
+          <div className="flex flex-col gap-2 w-full mt-1">
+            <p className="text-xs text-gray-500 px-2">Continue your journey:</p>
+            <div className="flex flex-wrap gap-2">
+              {message.metadata.suggested_questions.map((question, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => onQuestionClick?.(question)}
+                  className="px-3 py-1.5 rounded-full text-xs border border-gray-300 text-gray-700 hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors text-left"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
 
         {/* Timestamp */}
         <p className="text-xs text-gray-500 px-2">

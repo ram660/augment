@@ -15,10 +15,68 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isTransforming, setIsTransforming] = useState(false);
   const [resultUrls, setResultUrls] = useState<string[]>([]);
-  const [useGrounding, setUseGrounding] = useState<boolean>(false);
+  const [useGrounding, setUseGrounding] = useState<boolean>(true);
   const [summary, setSummary] = useState<any | null>(null);
   const [products, setProducts] = useState<Array<any>>([]);
   const [sources, setSources] = useState<string[]>([]);
+
+  const [groundingUnavailable, setGroundingUnavailable] = useState<boolean>(false);
+  const [groundingNotice, setGroundingNotice] = useState<string | undefined>(undefined);
+
+
+  const [selectedVariationIndex, setSelectedVariationIndex] = useState<number>(0);
+  useEffect(() => { setSelectedVariationIndex(0); }, [resultUrls]);
+
+  // Angle range and lightbox
+  const [anglePreset, setAnglePreset] = useState<'subtle'|'medium'>('subtle');
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const fetchToDataUrl = async (url: string): Promise<string> => {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Stacking edits on current result + segmentation base tracking
+  const [stackOnResult, setStackOnResult] = useState<boolean>(false);
+  const [segBaseDataUrl, setSegBaseDataUrl] = useState<string | null>(null);
+
+
+  // Helpers for product shelf UI
+  const getDomainFromUrl = (u: string): string => {
+    try {
+      const host = new URL(u).hostname || '';
+      return host.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  };
+  const isCADomain = (u: string): boolean => {
+    try {
+      const host = new URL(u).hostname.toLowerCase();
+      return host.endsWith('.ca');
+    } catch {
+      return false;
+    }
+  };
+  const getFaviconUrl = (u: string): string => {
+    const d = getDomainFromUrl(u);
+    return d ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : '';
+  };
+
+  // A–D tools state (Virtual Staging, Unstaging, Masked Edit, Segmentation)
+  const [vsStylePreset, setVsStylePreset] = useState<string>('modern');
+  const [vsStylePrompt, setVsStylePrompt] = useState<string>('');
+  const [vsDensity, setVsDensity] = useState<'light'|'medium'|'heavy'>('medium');
+  const [vsLockEnvelope, setVsLockEnvelope] = useState<boolean>(true);
+  const [unstageStrength, setUnstageStrength] = useState<'light'|'medium'|'full'>('medium');
+  const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);
+  const [segmentClass, setSegmentClass] = useState<string>('floors');
+  const [replacePrompt, setReplacePrompt] = useState<string>('');
 
   const [ideas, setIdeas] = useState<string[]>([]);
   const [ideasByTheme, setIdeasByTheme] = useState<Record<string, string[]>>({});
@@ -174,18 +232,28 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
     setSummary(null);
     setProducts([]);
     setSources([]);
+    setGroundingUnavailable(false);
+    setGroundingNotice(undefined);
     try {
       const prompt = customPrompt.trim();
 
-      const resp = selectedRoomImageId
-        ? await designAPI.transformPrompted(selectedRoomImageId, prompt, { numVariations: 4, enableGrounding: useGrounding })
-        : await designAPI.transformPromptedUpload(selectedImage as string, prompt, { numVariations: 4, enableGrounding: useGrounding });
+      let resp;
+      if (stackOnResult && resultUrls.length > 0) {
+        const dataUrl = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
+        resp = await designAPI.transformPromptedUpload(dataUrl, prompt, { numVariations: 4, enableGrounding: useGrounding });
+      } else {
+        resp = selectedRoomImageId
+          ? await designAPI.transformPrompted(selectedRoomImageId, prompt, { numVariations: 4, enableGrounding: useGrounding })
+          : await designAPI.transformPromptedUpload(selectedImage as string, prompt, { numVariations: 4, enableGrounding: useGrounding });
+      }
 
       const images = (resp as any).image_urls ?? [];
       setResultUrls(images);
       setSummary((resp as any).summary || null);
       setProducts(((resp as any).products || []) as any[]);
       setSources(((resp as any).sources || []) as string[]);
+      setGroundingUnavailable(Boolean((resp as any).grounding_unavailable));
+      setGroundingNotice((resp as any).grounding_notice);
     } catch (err) {
       console.error('Transformation error:', err);
       alert('Failed to transform image');
@@ -314,7 +382,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
                 <div className="mt-3 flex items-center gap-2">
                   <Button
                     onClick={handleTransform}
-                    disabled={isTransforming || !customPrompt.trim() || !selectedImage}
+                    disabled={isTransforming || !customPrompt.trim() || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
                     Transform
@@ -326,6 +394,370 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
                     Change Image
                   </Button>
                 </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={stackOnResult}
+                      onChange={(e) => setStackOnResult(e.target.checked)}
+                      disabled={resultUrls.length === 0}
+                    />
+                    Stack edits on current result
+                  </label>
+                  {stackOnResult && (
+                    <span className="text-[11px] text-gray-500">Uses the active variation as the base for the next tools.</span>
+                  )}
+                </div>
+                {/* Angles & Quality */}
+                <div className="mt-6 rounded border p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Angles & Quality</div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-600">Range</label>
+                      <select
+                        className="text-xs border rounded px-1.5 py-1"
+                        value={anglePreset}
+                        onChange={(e) => setAnglePreset(e.target.value as 'subtle'|'medium')}
+                      >
+                        <option value="subtle">Subtle (±6°)</option>
+                        <option value="medium">Medium (±12°)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1 mb-2">Generate small viewpoint shifts or enhance a blurry upload before transforming.</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!selectedImage || isTransforming}
+                      onClick={async () => {
+                        if (!selectedImage) return;
+                        try {
+                          setIsTransforming(true);
+                          const yawDegrees = anglePreset === 'subtle' ? 6 : 12;
+                          const pitchDegrees = anglePreset === 'subtle' ? 4 : 8;
+                          const numAngles = anglePreset === 'subtle' ? 3 : 4;
+                          const resp = await designAPI.multiAngleUpload(selectedImage, { numAngles, yawDegrees, pitchDegrees });
+                          setResultUrls((resp as any).image_urls ?? []);
+                        } catch (e) {
+                          alert('Failed to generate angles');
+                        } finally {
+                          setIsTransforming(false);
+                        }
+                      }}
+                    >Generate multi-angles</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={resultUrls.length === 0 || isTransforming}
+                      onClick={async () => {
+                        try {
+                          setIsTransforming(true);
+                          const yawDegrees = anglePreset === 'subtle' ? 6 : 12;
+                          const pitchDegrees = anglePreset === 'subtle' ? 4 : 8;
+                          const numAngles = anglePreset === 'subtle' ? 3 : 4;
+                          const dataUrl = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
+                          const resp = await designAPI.multiAngleUpload(dataUrl, { numAngles, yawDegrees, pitchDegrees });
+                          setResultUrls((resp as any).image_urls ?? []);
+                        } catch (e) {
+                          alert('Failed to generate angles from current result');
+                        } finally {
+                          setIsTransforming(false);
+                        }
+                      }}
+                    >Angles from this result</Button>
+                    <Button
+                      size="sm"
+                      disabled={!selectedImage || isTransforming}
+                      onClick={async () => {
+                        if (!selectedImage) return;
+                        try {
+                          setIsTransforming(true);
+                          const resp = await designAPI.enhanceUpload(selectedImage, { upscale2x: true });
+                          const first = (resp as any).image_urls?.[0];
+                          if (first) {
+                            setSelectedImage(first);
+                            setResultUrls([]);
+                            alert('Image enhanced. Using enhanced copy for next transforms.');
+                          }
+                        } catch (e) {
+                          alert('Failed to enhance image');
+                        } finally {
+                          setIsTransforming(false);
+                        }
+                      }}
+                    >Enhance quality</Button>
+                  </div>
+                </div>
+
+                {/* Studio Tools (beta): Virtual Staging, Unstaging, Segmentation, Masked Edit */}
+                <div className="mt-6 border-t pt-4">
+                  <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2">Studio Tools (beta)</div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Virtual Staging */}
+                    <div className="rounded border p-3">
+                      <div className="text-sm font-medium mb-2">Virtual Staging</div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="text-xs border rounded px-1.5 py-1"
+                          value={vsStylePreset}
+                          onChange={(e) => setVsStylePreset(e.target.value)}
+                        >
+                          <option value="modern">Modern</option>
+                          <option value="minimalist">Minimalist</option>
+                          <option value="traditional">Traditional</option>
+                          <option value="scandinavian">Scandinavian</option>
+                          <option value="bohemian">Bohemian</option>
+                        </select>
+                        <select
+                          className="text-xs border rounded px-1.5 py-1"
+                          value={vsDensity}
+                          onChange={(e) => setVsDensity(e.target.value as any)}
+                        >
+                          <option value="light">Light</option>
+                          <option value="medium">Medium</option>
+                          <option value="heavy">Heavy</option>
+                        </select>
+                        <label className="flex items-center gap-1 text-xs">
+                          <input type="checkbox" checked={vsLockEnvelope} onChange={(e) => setVsLockEnvelope(e.target.checked)} />
+                          Lock envelope
+                        </label>
+                      </div>
+                      <input
+                        className="mt-2 w-full border rounded px-2 py-1 text-xs"
+                        placeholder="Optional: add style prompt (e.g., coastal, mid-century sofa)"
+                        value={vsStylePrompt}
+                        onChange={(e) => setVsStylePrompt(e.target.value)}
+                      />
+                      <div className="mt-2">
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            if (!selectedImage) return;
+                            try {
+                              setIsTransforming(true);
+                              let resp;
+                              if (stackOnResult && resultUrls.length > 0) {
+                                const base = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
+                                resp = await designAPI.virtualStagingUpload(base, {
+                                  style_preset: vsStylePreset,
+                                  style_prompt: vsStylePrompt || undefined,
+                                  furniture_density: vsDensity,
+                                  lock_envelope: vsLockEnvelope,
+                                  num_variations: 3,
+                                  enableGrounding: useGrounding,
+                                });
+                              } else {
+                                resp = selectedRoomImageId
+                                  ? await designAPI.virtualStaging(selectedRoomImageId, {
+                                      style_preset: vsStylePreset,
+                                      style_prompt: vsStylePrompt || undefined,
+                                      furniture_density: vsDensity,
+                                      lock_envelope: vsLockEnvelope,
+                                      num_variations: 3,
+                                    })
+                                  : await designAPI.virtualStagingUpload(selectedImage as string, {
+                                      style_preset: vsStylePreset,
+                                      style_prompt: vsStylePrompt || undefined,
+                                      furniture_density: vsDensity,
+                                      lock_envelope: vsLockEnvelope,
+                                      num_variations: 3,
+                                      enableGrounding: useGrounding,
+                                    });
+                              }
+                              setResultUrls((resp as any).image_urls ?? []);
+                              setSummary((resp as any).summary || null);
+                              setProducts(((resp as any).products || []) as any[]);
+                              setSources(((resp as any).sources || []) as string[]);
+                              setGroundingUnavailable(Boolean((resp as any).grounding_unavailable));
+                              setGroundingNotice((resp as any).grounding_notice);
+                            } catch (e) {
+                              alert('Virtual staging failed');
+                            } finally {
+                              setIsTransforming(false);
+                            }
+                          }}
+                          disabled={isTransforming || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
+                        >Run Staging</Button>
+                      </div>
+                    </div>
+
+                    {/* Unstaging */}
+                    <div className="rounded border p-3">
+                      <div className="text-sm font-medium mb-2">Unstaging</div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-600">Strength</label>
+                        <select
+                          className="text-xs border rounded px-1.5 py-1"
+                          value={unstageStrength}
+                          onChange={(e) => setUnstageStrength(e.target.value as any)}
+                        >
+                          <option value="light">Light</option>
+                          <option value="medium">Medium</option>
+                          <option value="full">Full</option>
+                        </select>
+                      </div>
+                      <div className="mt-2">
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            if (!selectedImage) return;
+                            try {
+                              setIsTransforming(true);
+                              let resp;
+                              if (stackOnResult && resultUrls.length > 0) {
+                                const base = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
+                                resp = await designAPI.unstageUpload(base, {
+                                  strength: unstageStrength,
+                                  num_variations: 3,
+                                });
+                              } else {
+                                resp = selectedRoomImageId
+                                  ? await designAPI.unstage(selectedRoomImageId, {
+                                      strength: unstageStrength,
+                                      num_variations: 3,
+                                    })
+                                  : await designAPI.unstageUpload(selectedImage as string, {
+                                      strength: unstageStrength,
+                                      num_variations: 3,
+                                    });
+                              }
+                              setResultUrls((resp as any).image_urls ?? []);
+                            } catch (e) {
+                              alert('Unstaging failed');
+                            } finally {
+                              setIsTransforming(false);
+                            }
+                          }}
+                          disabled={isTransforming || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
+                        >Run Unstaging</Button>
+                      </div>
+                    </div>
+
+                    {/* Segmentation + Masked Edit */}
+                    <div className="rounded border p-3 md:col-span-2">
+                      <div className="text-sm font-medium mb-2">Segmentation + Masked Edit</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="text-xs text-gray-600">Target</label>
+                        <select
+                          className="text-xs border rounded px-1.5 py-1"
+                          value={segmentClass}
+                          onChange={(e) => setSegmentClass(e.target.value)}
+                        >
+                          <option value="floors">Floors</option>
+                          <option value="walls">Walls</option>
+                          <option value="cabinets">Cabinets</option>
+                          <option value="countertops">Countertops</option>
+                          <option value="backsplash">Backsplash</option>
+                          <option value="windows">Windows</option>
+                          <option value="doors">Doors</option>
+                          <option value="furniture">Furniture</option>
+                          <option value="decor">Decor</option>
+                          <option value="appliances">Appliances</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            if (!selectedImage && !(stackOnResult && resultUrls.length > 0)) return;
+                            try {
+                              let seg;
+                              if (stackOnResult && resultUrls.length > 0) {
+                                const base = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
+                                setSegBaseDataUrl(base);
+                                seg = await designAPI.segmentUpload(base, { segment_class: segmentClass, num_masks: 1 });
+                              } else {
+                                seg = selectedRoomImageId
+                                  ? await designAPI.segment(selectedRoomImageId, { segment_class: segmentClass, num_masks: 1 })
+                                  : await designAPI.segmentUpload(selectedImage as string, { segment_class: segmentClass, num_masks: 1 });
+                                setSegBaseDataUrl(selectedImage as string);
+                              }
+                              const first = seg.mask_data_urls?.[0] || null;
+                              setMaskDataUrl(first);
+                            } catch (e) {
+                              alert('Segmentation failed');
+                            }
+                          }}
+                          disabled={!selectedImage && !(stackOnResult && resultUrls.length > 0)}
+                        >AI Segment</Button>
+                      </div>
+
+                      {maskDataUrl && (
+                        <div className="mt-3">
+                          <div className="text-[11px] text-gray-500 mb-1">Mask preview</div>
+                          <div className="flex items-start gap-3">
+                            <div className="w-1/2">
+                              <img src={(segBaseDataUrl || selectedImage) || ''} alt="original" className="w-full rounded border" />
+                            </div>
+                            <div className="w-1/2">
+                              <img src={maskDataUrl} alt="mask" className="w-full rounded border" />
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <select
+                              className="text-xs border rounded px-1.5 py-1"
+                              value={replacePrompt ? 'replace' : 'remove'}
+                              onChange={(e) => { if (e.target.value === 'replace') { setReplacePrompt(replacePrompt || 'new item'); } else { setReplacePrompt(''); } }}
+                            >
+                              <option value="remove">Remove within mask</option>
+                              <option value="replace">Replace within mask</option>
+                            </select>
+                            {replacePrompt !== '' && (
+                              <input
+                                className="flex-1 border rounded px-2 py-1 text-xs"
+                                placeholder="Describe replacement (e.g., matte black pull handles)"
+                                value={replacePrompt}
+                                onChange={(e) => setReplacePrompt(e.target.value)}
+                              />
+                            )}
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                if (!selectedImage || !maskDataUrl) return;
+                                try {
+                                  setIsTransforming(true);
+                                      let baseImage: string | null = null;
+                                  if (segBaseDataUrl) {
+                                    baseImage = segBaseDataUrl;
+                                  } else if (stackOnResult && resultUrls.length > 0) {
+                                    baseImage = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
+                                  } else {
+                                    baseImage = selectedImage as string;
+                                  }
+                                  const useUpload = stackOnResult || !!segBaseDataUrl || !selectedRoomImageId;
+                                  const resp = useUpload
+                                    ? await designAPI.editWithMaskUpload(baseImage as string, maskDataUrl, {
+                                        operation: replacePrompt ? 'replace' : 'remove',
+                                        replacement_prompt: replacePrompt || undefined,
+                                        num_variations: 3,
+                                      })
+                                    : await designAPI.editWithMask(selectedRoomImageId as string, maskDataUrl, {
+                                        operation: replacePrompt ? 'replace' : 'remove',
+                                        replacement_prompt: replacePrompt || undefined,
+                                        num_variations: 3,
+                                      });
+                                  setResultUrls((resp as any).image_urls ?? []);
+                                } catch (e) {
+                                  alert('Masked edit failed');
+
+                                } finally {
+                                  setIsTransforming(false);
+                                }
+                              }}
+                              disabled={(isTransforming || !maskDataUrl) || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
+                            >Apply Mask Edit</Button>
+                          </div>
+
+
+
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
 
 
 
@@ -404,6 +836,26 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
               </>
 
             )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={resultUrls.length === 0 || isTransforming}
+                    onClick={async () => {
+                      try {
+                        const dataUrl = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
+                        setSelectedImage(dataUrl);
+                        setSelectedRoomImageId(null);
+                        setResultUrls([]);
+                        setStackOnResult(false);
+                        alert('Using this result as the starting point for next edits.');
+                      } catch (e) {
+                        alert('Failed to load result as input');
+                      }
+                    }}
+                  >Use this result for next edit</Button>
+                </div>
+
           </CardContent>
         </Card>
 
@@ -424,13 +876,23 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
               </div>
             ) : resultUrls.length > 0 ? (
               <div className="space-y-4">
-                <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                  <img src={resultUrls[0]} alt="Transformed" className="w-full h-full object-cover" />
+                <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden cursor-zoom-in" onClick={() => setLightboxUrl(resultUrls[selectedVariationIndex])}>
+                  <img src={resultUrls[selectedVariationIndex]} alt={`Transformed ${selectedVariationIndex+1}`} className="w-full h-full object-cover" />
                 </div>
                 {resultUrls.length > 1 && (
                   <div className="grid grid-cols-4 gap-2">
-                    {resultUrls.slice(1).map((u) => (
-                      <img key={u} src={u} alt="Variation" className="w-full h-20 object-cover rounded" />
+                    {resultUrls.map((u, idx) => (
+                      <button
+                        key={u}
+                        onClick={() => setSelectedVariationIndex(idx)}
+                        className={`relative rounded overflow-hidden border ${idx === selectedVariationIndex ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-gray-300'}`}
+                        title={`View variation ${idx+1}`}
+                      >
+                        <img src={u} alt={`Variation ${idx+1}`} className="w-full h-20 object-cover" />
+                        {idx === selectedVariationIndex && (
+                          <span className="absolute top-1 right-1 text-[10px] bg-primary text-white px-1.5 py-0.5 rounded">Active</span>
+                        )}
+                      </button>
                     ))}
                   </div>
                 )}
@@ -462,7 +924,60 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
                     )}
                   </div>
                 )}
+                {groundingUnavailable && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-xs px-2 py-1">
+                    {groundingNotice || 'Google Search grounding is unavailable; showing AI suggestions without live web sources.'}
+                  </div>
+                )}
                 {products.length > 0 && (
+                  <div className="rounded-lg border p-3">
+                    <div className="text-sm font-medium mb-2">Shop these items</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {products.map((p: any, i: number) => {
+                        const href = (p.url as string) || '#';
+                        const domain = getDomainFromUrl(href);
+                        const isCA = isCADomain(href);
+                        const thumb = (p.image_url as string) || getFaviconUrl(href);
+                        return (
+                          <a key={i} href={href} target="_blank" rel="noreferrer" className="group block border rounded-md overflow-hidden hover:shadow-sm transition">
+                            <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center">
+                              {thumb ? (
+                                <img src={thumb} alt={p.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="text-xs text-gray-400 p-2 text-center">No image</div>
+                              )}
+                            </div>
+                            <div className="p-2">
+                              <div className="text-xs font-medium line-clamp-2">{p.name}</div>
+                              <div className="mt-1 flex items-center gap-1 flex-wrap">
+                                {p.price_estimate && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    {p.price_estimate}
+                                  </span>
+                                )}
+                                {isCA && (
+                                  <span className="text-[10px] px-1 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">CAD</span>
+                                )}
+                                {isCA && (
+                                  <span className="text-[10px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">.ca</span>
+                                )}
+                                {p.category && (
+                                  <span className="text-[10px] px-1 py-0.5 rounded bg-gray-50 text-gray-600 border border-gray-200">{p.category}</span>
+                                )}
+                              </div>
+                              <div className="mt-1 text-[10px] text-gray-500">{domain}</div>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                    {sources.length > 0 && (
+                      <div className="text-[11px] text-gray-500 mt-2">Sources: {sources.slice(0, 3).join(', ')}</div>
+                    )}
+                  </div>
+                )}
+
+                {false && (
                   <div className="rounded-lg border p-3">
                     <div className="text-sm font-medium">Product suggestions</div>
                     <ul className="list-disc pl-5 text-sm mt-1 space-y-1">
@@ -553,6 +1068,26 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
           </div>
         )}
       </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={() => setLightboxUrl(null)}>
+          <button
+            className="absolute top-4 right-4 text-white text-2xl"
+            onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Full screen preview"
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
     </div>
   );
 }

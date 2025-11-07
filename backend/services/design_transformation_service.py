@@ -22,7 +22,7 @@ from PIL import Image
 import io
 import base64
 
-from backend.integrations.gemini import GeminiClient
+from backend.integrations.gemini.client import GeminiClient
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class DesignTransformationService:
     """
     Service for AI-powered design transformations using Gemini Imagen.
-    
+
     Key Features:
     - Precise transformations (only modify requested elements)
     - Preserve room structure and layout
@@ -38,7 +38,7 @@ class DesignTransformationService:
     - Keep unchanged elements identical
     - Generate photorealistic results
     """
-    
+
     # Core transformation rules that apply to ALL transformations
     CORE_PRESERVATION_RULES = """
 CRITICAL PRESERVATION RULES (MUST FOLLOW):
@@ -69,7 +69,7 @@ STRICT NEGATIVE INSTRUCTIONS (DO NOT DO THESE):
     def __init__(self, gemini_client: Optional[GeminiClient] = None):
         """Initialize Design Transformation Service."""
         self.gemini = gemini_client or GeminiClient()
-    
+
     async def transform_paint(
         self,
         image: Union[str, Path, Image.Image, bytes],
@@ -122,7 +122,7 @@ OUTPUT REQUIREMENTS:
 """
 
         return await self._generate_transformation(image, prompt, num_variations)
-    
+
     async def transform_flooring(
         self,
         image: Union[str, Path, Image.Image, bytes],
@@ -147,7 +147,7 @@ OUTPUT REQUIREMENTS:
             List of transformed images with new flooring
         """
         color_spec = f"- Color: {target_color}" if target_color else ""
-        
+
         prompt = f"""Transform this room image by changing ONLY the flooring.
 
 TARGET CHANGE:
@@ -184,7 +184,7 @@ OUTPUT REQUIREMENTS:
 """
 
         return await self._generate_transformation(image, prompt, num_variations)
-    
+
     async def transform_cabinets(
         self,
         image: Union[str, Path, Image.Image, bytes],
@@ -210,7 +210,7 @@ OUTPUT REQUIREMENTS:
         """
         style_spec = f"- Cabinet style: {target_style}" if target_style else "- Keep existing cabinet door style"
         hardware_spec = "- Preserve all existing cabinet hardware (handles, knobs, hinges)" if preserve_hardware else "- Update hardware to complement new cabinet finish"
-        
+
         prompt = f"""Transform this room image by changing ONLY the kitchen/bathroom cabinets.
 
 TARGET CHANGE:
@@ -248,7 +248,7 @@ OUTPUT REQUIREMENTS:
 """
 
         return await self._generate_transformation(image, prompt, num_variations)
-    
+
     async def _generate_transformation(
         self,
         image: Union[str, Path, Image.Image, bytes],
@@ -257,12 +257,12 @@ OUTPUT REQUIREMENTS:
     ) -> List[Image.Image]:
         """
         Generate transformation using Gemini Imagen.
-        
+
         Args:
             image: Original image
             prompt: Detailed transformation prompt
             num_variations: Number of variations to generate (1-4)
-        
+
         Returns:
             List of transformed images
         """
@@ -277,11 +277,11 @@ OUTPUT REQUIREMENTS:
 
             logger.info(f"Generated {len(generated_images)} transformation variations")
             return generated_images
-            
+
         except Exception as e:
             logger.error(f"Error generating transformation: {str(e)}", exc_info=True)
             raise
-    
+
     def _load_image(self, image: Union[str, Path, Image.Image, bytes]) -> Image.Image:
         """Load image from various formats."""
         if isinstance(image, Image.Image):
@@ -292,7 +292,7 @@ OUTPUT REQUIREMENTS:
             return Image.open(io.BytesIO(image))
         else:
             raise ValueError(f"Unsupported image type: {type(image)}")
-    
+
     def _image_to_base64(self, image: Image.Image) -> str:
         """Convert PIL Image to base64 string."""
         buffered = io.BytesIO()
@@ -550,4 +550,190 @@ OUTPUT REQUIREMENTS:
 """
 
         return await self._generate_transformation(image, prompt, num_variations)
+
+    async def transform_virtual_staging(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        style_preset: Optional[str] = None,
+        style_prompt: Optional[str] = None,
+        furniture_density: str = "medium",
+        lock_envelope: bool = True,
+        num_variations: int = 4,
+    ) -> List[Image.Image]:
+        """
+        Virtual Staging: furnish the room while preserving the architectural envelope
+        (floors, walls, ceilings, windows/doors) and camera/perspective.
+        """
+        preset_text = f"- Overall style preset: {style_preset}" if style_preset else ""
+        custom_text = f"- Follow these style cues: {style_prompt}" if style_prompt else ""
+        envelope_text = (
+            "- Preserve floors, walls, ceilings, windows, doors, trim, and openings exactly"
+            if lock_envelope
+            else "- You may adjust decor attached to envelope but do not alter geometry"
+        )
+        density_text = (
+            f"- Furniture density/amount: {furniture_density} (avoid overcrowding)"
+        )
+        prompt = f"""Stage this exact room by ADDING furniture and decor only.
+
+TARGET CHANGE:
+{preset_text}
+{custom_text}
+{density_text}
+{envelope_text}
+
+{self.CORE_PRESERVATION_RULES}
+
+VIRTUAL STAGING RULES (override negatives as needed):
+- You ARE allowed to add furniture and decor.
+- Do NOT change floors, walls, ceilings, paint, windows, doors, or layout.
+- Keep camera, lighting, and perspective identical.
+- Respect realistic scale, contact shadows, and occlusions.
+- Ensure all additions fit spatially and stylistically.
+
+OUTPUT:
+- Photorealistic result that looks like real furniture was placed in the existing room.
+- No hallucinated structural changes; only furnishings and small decor.
+"""
+        return await self._generate_transformation(image, prompt, num_variations)
+
+    async def transform_unstaging(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        strength: str = "medium",
+        num_variations: int = 3,
+    ) -> List[Image.Image]:
+        """
+        Unstaging: remove furniture/decor while preserving the architectural envelope.
+        strength: light | medium | full (how aggressively to remove loose items)
+        """
+        prompt = f"""Unstage this exact room by REMOVING furniture and decor.
+
+TARGET CHANGE:
+- Removal strength: {strength} (light = minimal clutter removal, full = remove all furnishings)
+- Fill revealed areas naturally (show original floors/walls with realistic continuity).
+
+{self.CORE_PRESERVATION_RULES}
+
+UNSTAGING RULES:
+- Do NOT alter floors, walls, ceilings, windows, or doors.
+- Maintain camera, lighting, shadows, and perspective.
+- Reconstruct background surfaces realistically where items were removed.
+- Preserve built-ins and architectural details.
+
+OUTPUT:
+- Photorealistic empty or minimally furnished space per strength level.
+"""
+        return await self._generate_transformation(image, prompt, num_variations)
+
+    async def transform_masked_edit(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        mask_image: Union[str, Path, Image.Image, bytes],
+        operation: str,
+        replacement_prompt: Optional[str] = None,
+        num_variations: int = 3,
+    ) -> List[Image.Image]:
+        """
+        Masked edit: remove or replace ONLY within the white regions of the mask.
+        operation: 'remove' | 'replace'
+        """
+        op = (operation or "").lower().strip()
+        if op not in {"remove", "replace"}:
+            raise ValueError("operation must be 'remove' or 'replace'")
+
+        base_rules = f"""
+ONLY modify pixels INSIDE the white area of the provided mask image.
+Outside the mask must remain IDENTICAL to the original (bitwise identical where possible).
+
+{self.CORE_PRESERVATION_RULES}
+"""
+        if op == "remove":
+            prompt = f"""Remove the masked object(s) and convincingly inpaint the background.
+
+{base_rules}
+INPAINTING REQUIREMENTS:
+- Continue lines, textures, and patterns behind the removed object.
+- Preserve realistic lighting, shadows, and reflections.
+- Avoid blurry patches; match original grain and detail.
+"""
+        else:
+            repl_text = replacement_prompt or "an appropriate replacement matching the scene style"
+            prompt = f"""Replace the masked region with: {repl_text}
+
+{base_rules}
+REPLACEMENT REQUIREMENTS:
+- Respect scene perspective, scale, and contact shadows.
+- Materials and colors should harmonize with the room.
+- No spillover beyond the mask boundary.
+"""
+
+        # Use Gemini masked editing via multimodal inputs
+        return await self.gemini.edit_image_masked(
+            prompt=prompt,
+            reference_image=image,
+            mask_image=mask_image,
+            num_images=num_variations,
+        )
+
+
+
+    async def transform_multi_angle_views(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        num_angles: int = 3,
+        yaw_degrees: int = 6,
+        pitch_degrees: int = 4,
+    ) -> List[Image.Image]:
+        """
+        Experimental: Generate small, plausible viewpoint variations of the same room.
+        Produces N photorealistic images with slight yaw/pitch shifts while preserving
+        the room's contents, materials, colors, and lighting.
+        """
+        num_angles = max(1, min(int(num_angles), 4))
+        yaw_degrees = max(1, min(int(yaw_degrees), 15))
+        pitch_degrees = max(0, min(int(pitch_degrees), 15))
+
+        prompt = f"""
+Re-render the SAME room scene from SMALL alternative camera viewpoints.
+- Allow minor camera changes: yaw up to ±{yaw_degrees}°, pitch up to ±{pitch_degrees}°.
+- Keep focal length and aspect ratio consistent; avoid fisheye or extreme distortion.
+- Do NOT add or remove any objects, decor, fixtures, or architectural elements.
+- Preserve all materials, colors, textures, and lighting consistency.
+- Maintain photorealism and correct geometry with plausible parallax.
+- Keep composition similar; do not crop or reframe aggressively.
+- Generate distinct angles covering left/right and slight up/down variation.
+"""
+        return await self.gemini.edit_image(
+            prompt=prompt,
+            reference_image=image,
+            num_images=num_angles,
+        )
+
+    async def enhance_quality(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        upscale_2x: bool = True,
+    ) -> List[Image.Image]:
+        """
+        Enhance image quality (denoise, deblur, sharpen, correct color gently).
+        Preserve the scene content exactly (no changes to objects, layout, or style).
+        Optionally upscale 2x while maintaining natural detail.
+        Returns a single enhanced image in a list for consistency.
+        """
+        upscale_text = "- If possible, upscale to 2x resolution while preserving natural detail." if upscale_2x else ""
+        prompt = f"""
+Enhance this photo WITHOUT changing its content.
+- Denoise, deblur, and improve sharpness while avoiding over-smoothing.
+- Maintain original colors and lighting; allow mild white balance correction.
+- Do NOT alter objects, layout, camera viewpoint, or materials.
+{upscale_text}
+- Output should look like the same photograph, just higher quality.
+"""
+        img = await self.gemini.edit_image(
+            prompt=prompt,
+            reference_image=image,
+            num_images=1,
+        )
+        return img
 

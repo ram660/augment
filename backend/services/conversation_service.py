@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, desc, func
+from sqlalchemy import select, and_, desc, func, text
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import OperationalError
 
 from backend.models.conversation import Conversation, ConversationMessage, ConversationSummary
 from backend.integrations.gemini.client import GeminiClient
@@ -59,30 +60,63 @@ class ConversationService:
             logger.info(f"Created conversation: {conversation.id}")
             return conversation
 
-        except Exception as e:
-            # Fallback for dev DBs without new columns: retry without persona/scenario
+        except OperationalError as e:
+            # Fallback for dev DBs without new columns: insert only core columns via raw SQL
             await self.db.rollback()
             try:
+                conv_id = uuid.uuid4()
+                now = datetime.utcnow()
+                sql = text(
+                    """
+                    INSERT INTO conversations (
+                        id, user_id, home_id, title, is_active, message_count, created_at, updated_at, last_message_at
+                    ) VALUES (
+                        :id, :user_id, :home_id, :title, :is_active, :message_count, :created_at, :updated_at, :last_message_at
+                    )
+                    """
+                )
+                await self.db.execute(sql, {
+                    "id": str(conv_id),
+                    "user_id": str(uuid.UUID(user_id)) if user_id else None,
+                    "home_id": str(uuid.UUID(home_id)) if home_id else None,
+                    "title": title or "New Conversation",
+                    "is_active": True,
+                    "message_count": 0,
+                    "created_at": now,
+                    "updated_at": now,
+                    "last_message_at": None,
+                })
+                await self.db.commit()
+
+                # Construct a Conversation instance without touching ORM persistence (avoid SELECT *)
                 conversation = Conversation(
-                    id=uuid.uuid4(),
+                    id=conv_id,
                     user_id=uuid.UUID(user_id) if user_id else None,
                     home_id=uuid.UUID(home_id) if home_id else None,
-                    title=title,
+                    title=title or "New Conversation",
                     is_active=True,
-                    message_count=0
+                    message_count=0,
                 )
-                self.db.add(conversation)
-                await self.db.commit()
-                await self.db.refresh(conversation)
+                setattr(conversation, "created_at", now)
+                setattr(conversation, "updated_at", now)
+                setattr(conversation, "last_message_at", None)
+                setattr(conversation, "summary", None)
+                setattr(conversation, "persona", None)
+                setattr(conversation, "scenario", None)
+
                 logger.warning(
-                    "Created conversation without persona/scenario (columns likely missing). "
-                    "Run alembic upgrade head to add them."
+                    "Created conversation via raw SQL without persona/scenario (columns missing). "
+                    "Run migrations to add them when ready."
                 )
                 return conversation
             except Exception as e2:
                 await self.db.rollback()
-                logger.error(f"Failed to create conversation (fallback): {e2}", exc_info=True)
+                logger.error(f"Failed to create conversation (raw SQL fallback): {e2}", exc_info=True)
                 raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Failed to create conversation: {e}", exc_info=True)
+            raise
 
     async def update_conversation_attributes(
         self,
@@ -144,15 +178,44 @@ class ConversationService:
         """Get a conversation by ID."""
         try:
             query = select(Conversation).where(Conversation.id == uuid.UUID(conversation_id))
-            
+
             if include_messages:
                 query = query.options(selectinload(Conversation.messages))
-            
-            result = await self.db.execute(query)
-            conversation = result.scalar_one_or_none()
-            
-            return conversation
-            
+
+            try:
+                result = await self.db.execute(query)
+                conversation = result.scalar_one_or_none()
+                return conversation
+            except OperationalError:
+                # Fallback: query minimal columns to avoid missing new columns in older DBs
+                sql = text(
+                    """
+                    SELECT id, user_id, home_id, title, is_active, message_count, created_at, updated_at, last_message_at
+                    FROM conversations
+                    WHERE id = :id
+                    LIMIT 1
+                    """
+                )
+                res = await self.db.execute(sql, {"id": str(uuid.UUID(conversation_id))})
+                row = res.mappings().first()
+                if not row:
+                    return None
+                conv = Conversation(
+                    id=uuid.UUID(str(row["id"])),
+                    user_id=uuid.UUID(str(row["user_id"])) if row.get("user_id") else None,
+                    home_id=uuid.UUID(str(row["home_id"])) if row.get("home_id") else None,
+                    title=row.get("title"),
+                    is_active=bool(row.get("is_active")) if row.get("is_active") is not None else True,
+                    message_count=int(row.get("message_count") or 0),
+                )
+                setattr(conv, "created_at", row.get("created_at"))
+                setattr(conv, "updated_at", row.get("updated_at"))
+                setattr(conv, "last_message_at", row.get("last_message_at"))
+                setattr(conv, "summary", None)
+                setattr(conv, "persona", None)
+                setattr(conv, "scenario", None)
+                return conv
+
         except Exception as e:
             logger.error(f"Failed to get conversation {conversation_id}: {e}", exc_info=True)
             return None
@@ -180,21 +243,37 @@ class ConversationService:
             )
             
             self.db.add(message)
-            
+
             # Update conversation
             conversation = await self.get_conversation(conversation_id)
             if conversation:
                 conversation.message_count += 1
                 conversation.last_message_at = datetime.utcnow()
                 conversation.updated_at = datetime.utcnow()
-                
+
                 # Auto-generate title from first user message
                 if not conversation.title and role == "user" and conversation.message_count == 1:
                     conversation.title = await self._generate_title(content)
-            
+            else:
+                # Fallback for older DB schemas: raw SQL increment without touching new columns
+                try:
+                    now = datetime.utcnow()
+                    await self.db.execute(
+                        text("""
+                            UPDATE conversations
+                            SET message_count = COALESCE(message_count, 0) + 1,
+                                last_message_at = :now,
+                                updated_at = :now
+                            WHERE id = :id
+                        """),
+                        {"now": now, "id": str(uuid.UUID(conversation_id))}
+                    )
+                except Exception as ue:
+                    logger.debug(f"Fallback update of conversation counters failed: {ue}")
+
             await self.db.commit()
             await self.db.refresh(message)
-            
+
             logger.info(f"Added {role} message to conversation {conversation_id}")
             return message
             
@@ -263,7 +342,7 @@ class ConversationService:
         """List conversations with filters."""
         try:
             query = select(Conversation)
-            
+
             # Apply filters
             filters = []
             if user_id:
@@ -272,18 +351,67 @@ class ConversationService:
                 filters.append(Conversation.home_id == uuid.UUID(home_id))
             if is_active is not None:
                 filters.append(Conversation.is_active == is_active)
-            
+
             if filters:
                 query = query.where(and_(*filters))
-            
+
             # Order by most recent
             query = query.order_by(desc(Conversation.updated_at)).limit(limit).offset(offset)
-            
-            result = await self.db.execute(query)
-            conversations = result.scalars().all()
-            
-            return list(conversations)
-            
+
+            try:
+                result = await self.db.execute(query)
+                conversations = result.scalars().all()
+                return list(conversations)
+            except OperationalError as oe:
+                logger.warning(
+                    "List conversations failed due to schema mismatch (likely missing columns). "
+                    "Falling back to minimal column query.")
+                # Fallback: query only core columns present in older schemas
+                uid = str(uuid.UUID(user_id)) if user_id else None
+                hid = str(uuid.UUID(home_id)) if home_id else None
+                sql = text(
+                    """
+                    SELECT id, user_id, home_id, title, is_active, message_count, created_at, updated_at, last_message_at
+                    FROM conversations
+                    WHERE (:uid IS NULL OR user_id = :uid)
+                      AND (:hid IS NULL OR home_id = :hid)
+                      AND (:active IS NULL OR is_active = :active)
+                    ORDER BY updated_at DESC
+                    LIMIT :limit OFFSET :offset
+                    """
+                )
+                result = await self.db.execute(sql, {
+                    "uid": uid,
+                    "hid": hid,
+                    "active": is_active,
+                    "limit": limit,
+                    "offset": offset,
+                })
+                rows = result.mappings().all()
+                # Build lightweight Conversation objects (detached)
+                conversations: List[Conversation] = []
+                for r in rows:
+                    try:
+                        conv = Conversation(
+                            id=uuid.UUID(str(r["id"])) if r.get("id") else uuid.uuid4(),
+                            user_id=uuid.UUID(str(r["user_id"])) if r.get("user_id") else None,
+                            home_id=uuid.UUID(str(r["home_id"])) if r.get("home_id") else None,
+                            title=r.get("title"),
+                            is_active=bool(r.get("is_active")) if r.get("is_active") is not None else True,
+                            message_count=int(r.get("message_count") or 0),
+                        )
+                        # Set timestamps if present
+                        setattr(conv, "created_at", r.get("created_at"))
+                        setattr(conv, "updated_at", r.get("updated_at"))
+                        setattr(conv, "last_message_at", r.get("last_message_at"))
+                        # Ensure missing new fields are None
+                        setattr(conv, "summary", None)
+                        setattr(conv, "persona", None)
+                        setattr(conv, "scenario", None)
+                        conversations.append(conv)
+                    except Exception as be:
+                        logger.debug(f"Skipping row in fallback mapping: {be}")
+                return conversations
         except Exception as e:
             logger.error(f"Failed to list conversations: {e}", exc_info=True)
             return []

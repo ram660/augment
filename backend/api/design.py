@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import io
 import base64
 import uuid
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageStat, ImageDraw
 
 from backend.database import get_async_db
 from backend.models import RoomImage, Room, TransformationType, TransformationStatus
@@ -120,6 +120,95 @@ class FurnitureTransformRequest(BaseModel):
     num_variations: int = Field(default=4, ge=1, le=4)
 
 
+class VirtualStagingRequest(BaseModel):
+    """Request model for Virtual Staging (add furnishings without altering envelope)."""
+    room_image_id: UUID
+    style_preset: Optional[str] = Field(None, description="Style preset (e.g., Modern, Scandinavian, Minimal)")
+    style_prompt: Optional[str] = Field(None, description="Custom style cues or theme")
+    furniture_density: str = Field(default="medium", description="Amount of furniture: light | medium | full")
+    lock_envelope: bool = Field(default=True, description="Preserve floors/walls/ceilings/windows/doors exactly")
+    num_variations: int = Field(default=2, ge=1, le=4)
+
+
+class UnstagingRequest(BaseModel):
+    """Request model for Unstaging (remove furnishings)."""
+    room_image_id: UUID
+    strength: str = Field(default="medium", description="light | medium | full")
+    num_variations: int = Field(default=2, ge=1, le=4)
+
+
+class MaskedEditRequest(BaseModel):
+    """Masked edit: replace or remove inside a user-provided mask (data URL)."""
+    room_image_id: UUID
+    mask_data_url: str = Field(..., description="Base64 data URL for a single-channel (L) mask; white = editable")
+    operation: str = Field(..., description="remove | replace")
+    replacement_prompt: Optional[str] = Field(None, description="Description of what to place for replace operation")
+    num_variations: int = Field(default=2, ge=1, le=4)
+
+
+class PolygonMaskFromPointsRequest(BaseModel):
+    """Create a binary mask from polygon points (click-to-segment helper)."""
+    room_image_id: Optional[UUID] = Field(None, description="If provided, infer width/height from this image")
+    width: Optional[int] = Field(None, description="Mask width in pixels (required if no room_image_id)")
+    height: Optional[int] = Field(None, description="Mask height in pixels (required if no room_image_id)")
+    points: List[List[int]] = Field(..., description="List of [x,y] points defining a polygon (closed)")
+
+
+class PolygonMaskResponse(BaseModel):
+    mask_data_url: str
+
+
+class SegmentRequest(BaseModel):
+    room_image_id: UUID
+    segment_class: str = Field(..., description="Target class to segment (e.g., floor, walls, cabinets)")
+    points: Optional[List[Dict[str, int]]] = Field(None, description="Optional point hints as {'x':int,'y':int}")
+    num_masks: int = Field(default=1, ge=1, le=4)
+
+
+class SegmentResponse(BaseModel):
+    mask_data_urls: List[str]
+
+
+# Upload-capable request models (no Digital Twin required)
+class VirtualStagingUploadRequest(BaseModel):
+    image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
+    style_preset: Optional[str] = Field(None, description="Style preset (e.g., Modern, Scandinavian, Minimal)")
+    style_prompt: Optional[str] = Field(None, description="Custom style cues or theme")
+    furniture_density: str = Field(default="medium", description="Amount of furniture: light | medium | heavy")
+    lock_envelope: bool = Field(default=True, description="Preserve floors/walls/ceilings/windows/doors exactly")
+    num_variations: int = Field(default=2, ge=1, le=4)
+    enable_grounding: bool = Field(default=False, description="If true, suggest products (Canada-first) using Google Search grounding")
+
+class UnstagingUploadRequest(BaseModel):
+    image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
+    strength: str = Field(default="medium", description="light | medium | full")
+    num_variations: int = Field(default=2, ge=1, le=4)
+
+class MaskedEditUploadRequest(BaseModel):
+    image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
+    mask_data_url: str = Field(..., description="Base64 data URL for a single-channel (L) mask; white = editable")
+    operation: str = Field(..., description="remove | replace")
+    replacement_prompt: Optional[str] = Field(None, description="Describe what to place for 'replace' operation")
+    num_variations: int = Field(default=2, ge=1, le=4)
+
+class SegmentUploadRequest(BaseModel):
+    image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
+    segment_class: str = Field(..., description="Target class to segment (e.g., floor, walls, cabinets)")
+    points: Optional[List[Dict[str, int]]] = Field(None, description="Optional point hints as {'x':int,'y':int}")
+    num_masks: int = Field(default=1, ge=1, le=4)
+
+
+class MultiAngleUploadRequest(BaseModel):
+    image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
+    num_angles: int = Field(default=3, ge=1, le=4)
+    yaw_degrees: int = Field(default=6, ge=1, le=15)
+    pitch_degrees: int = Field(default=4, ge=0, le=15)
+
+class EnhanceUploadRequest(BaseModel):
+    image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
+    upscale_2x: bool = Field(default=True, description="If true, attempt 2x upscaling while preserving detail")
+
+
 class CustomTransformRequest(BaseModel):
     """Request model for custom transformation with user prompt."""
     room_image_id: UUID
@@ -162,6 +251,8 @@ class PromptedTransformResponse(BaseModel):
     summary: Dict[str, Any] = {}
     products: List[Dict[str, Any]] = []
     sources: List[str] = []
+    grounding_unavailable: bool = False
+    grounding_notice: Optional[str] = None
 
 class UploadPromptedTransformRequest(BaseModel):
     """Request model for prompt-driven transformation from an uploaded image (no Digital Twin required)."""
@@ -180,6 +271,8 @@ class PromptedTransformUploadResponse(BaseModel):
     summary: Dict[str, Any] = {}
     products: List[Dict[str, Any]] = []
     sources: List[str] = []
+    grounding_unavailable: bool = False
+    grounding_notice: Optional[str] = None
 
 
 
@@ -437,6 +530,7 @@ async def transform_countertops(
             success=True,
             message=f"Successfully generated {len(transformed_images)} countertop transformation variations",
             num_variations=len(transformed_images),
+
             transformation_type="countertops",
             original_image_id=request.room_image_id
         )
@@ -444,6 +538,330 @@ async def transform_countertops(
     except Exception as e:
         logger.error(f"Error transforming countertops: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/virtual-staging", response_model=TransformationResponse)
+async def virtual_staging(
+    request: VirtualStagingRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Virtual Staging: add furnishings/decor while preserving the room envelope.
+    Uses Gemini image editing per official docs: https://ai.google.dev/gemini-api/docs/image-generation
+    """
+    start_time = time.time()
+    storage_service = TransformationStorageService()
+    try:
+        # Load room image
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+
+        # Create transformation record (use FURNITURE type)
+        transformation = await storage_service.create_transformation(
+            db=db,
+            room_image_id=request.room_image_id,
+            transformation_type=TransformationType.FURNITURE,
+            parameters={
+                "mode": "virtual_staging",
+                "style_preset": request.style_preset,
+                "style_prompt": request.style_prompt,
+                "furniture_density": request.furniture_density,
+                "lock_envelope": request.lock_envelope,
+            },
+            num_variations=request.num_variations,
+        )
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.PROCESSING,
+        )
+
+        # Generate
+        service = DesignTransformationService()
+        images = await service.transform_virtual_staging(
+            image=image,
+            style_preset=request.style_preset,
+            style_prompt=request.style_prompt,
+            furniture_density=request.furniture_density,
+            lock_envelope=request.lock_envelope,
+            num_variations=request.num_variations,
+        )
+
+        # Save
+        transformation_images = await storage_service.save_transformation_images(
+            db=db,
+            transformation_id=transformation.id,
+            images=images,
+        )
+
+        processing_time = int(time.time() - start_time)
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.COMPLETED,
+            processing_time_seconds=processing_time,
+        )
+
+        return TransformationResponse(
+            success=True,
+            message=f"Generated {len(images)} virtual staging variations",
+            transformation_id=transformation.id,
+            num_variations=len(images),
+            transformation_type="furniture",
+            original_image_id=request.room_image_id,
+            status="completed",
+            image_urls=[img.image_url for img in transformation_images],
+        )
+    except Exception as e:
+        logger.error(f"virtual_staging failed: {e}", exc_info=True)
+        if 'transformation' in locals():
+            await storage_service.update_transformation_status(
+                db=db,
+                transformation_id=transformation.id,
+                status=TransformationStatus.FAILED,
+                error_message=str(e),
+            )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/unstage", response_model=TransformationResponse)
+async def unstage(
+    request: UnstagingRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Unstaging: remove furnishings/decor; preserve floors/walls/ceilings/windows/doors.
+    """
+    start_time = time.time()
+    storage_service = TransformationStorageService()
+    try:
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+
+        transformation = await storage_service.create_transformation(
+            db=db,
+            room_image_id=request.room_image_id,
+            transformation_type=TransformationType.FURNITURE,
+            parameters={
+                "mode": "unstage",
+                "strength": request.strength,
+            },
+            num_variations=request.num_variations,
+        )
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.PROCESSING,
+        )
+
+        service = DesignTransformationService()
+        images = await service.transform_unstaging(
+            image=image,
+            strength=request.strength,
+            num_variations=request.num_variations,
+        )
+
+        transformation_images = await storage_service.save_transformation_images(
+            db=db,
+            transformation_id=transformation.id,
+            images=images,
+        )
+
+        processing_time = int(time.time() - start_time)
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.COMPLETED,
+            processing_time_seconds=processing_time,
+        )
+
+        return TransformationResponse(
+            success=True,
+            message=f"Generated {len(images)} unstaging variations",
+            transformation_id=transformation.id,
+            num_variations=len(images),
+            transformation_type="furniture",
+            original_image_id=request.room_image_id,
+            status="completed",
+            image_urls=[img.image_url for img in transformation_images],
+        )
+    except Exception as e:
+        logger.error(f"unstage failed: {e}", exc_info=True)
+        if 'transformation' in locals():
+            await storage_service.update_transformation_status(
+                db=db,
+                transformation_id=transformation.id,
+                status=TransformationStatus.FAILED,
+                error_message=str(e),
+            )
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/edit-with-mask", response_model=TransformationResponse)
+async def edit_with_mask(
+    request: MaskedEditRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Precise remove/replace inside a provided binary mask (white = editable).
+    Follows Gemini masked multimodal pattern: https://ai.google.dev/gemini-api/docs/image-generation
+    """
+    start_time = time.time()
+    storage_service = TransformationStorageService()
+    try:
+        # Load room image
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+
+        # Decode mask data URL
+        if not request.mask_data_url.startswith("data:"):
+            raise HTTPException(status_code=400, detail="mask_data_url must be a data URL")
+        header, b64data = request.mask_data_url.split(",", 1)
+        mask_bytes = base64.b64decode(b64data)
+
+        # Create transformation record
+        transformation = await storage_service.create_transformation(
+            db=db,
+            room_image_id=request.room_image_id,
+            transformation_type=TransformationType.MULTI,
+            parameters={
+                "mode": "masked_edit",
+                "operation": request.operation,
+                "replacement_prompt": request.replacement_prompt,
+            },
+            num_variations=request.num_variations,
+        )
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.PROCESSING,
+        )
+
+        # Perform masked edit
+        service = DesignTransformationService()
+        images = await service.transform_masked_edit(
+            image=image,
+            mask_image=mask_bytes,
+            operation=request.operation,
+            replacement_prompt=request.replacement_prompt,
+            num_variations=request.num_variations,
+        )
+
+        # Save
+        transformation_images = await storage_service.save_transformation_images(
+            db=db,
+            transformation_id=transformation.id,
+            images=images,
+        )
+
+        processing_time = int(time.time() - start_time)
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.COMPLETED,
+            processing_time_seconds=processing_time,
+        )
+
+        return TransformationResponse(
+            success=True,
+            message=f"Generated {len(images)} masked edit variations",
+            transformation_id=transformation.id,
+            num_variations=len(images),
+            transformation_type="multi",
+            original_image_id=request.room_image_id,
+            status="completed",
+            image_urls=[img.image_url for img in transformation_images],
+        )
+    except Exception as e:
+        logger.error(f"edit_with_mask failed: {e}", exc_info=True)
+        if 'transformation' in locals():
+            await storage_service.update_transformation_status(
+                db=db,
+                transformation_id=transformation.id,
+                status=TransformationStatus.FAILED,
+                error_message=str(e),
+            )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/mask-from-polygon", response_model=PolygonMaskResponse)
+async def mask_from_polygon(
+    request: PolygonMaskFromPointsRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Builds a white-on-black binary mask PNG from polygon points (click-to-segment helper).
+    - If room_image_id is provided, the mask size is inferred from that image.
+    - Otherwise, width/height must be provided.
+    Returns a base64 data URL suitable for /edit-with-mask.
+    """
+    try:
+        width = request.width
+        height = request.height
+
+        if request.room_image_id:
+            room_image = await load_room_image(request.room_image_id, db)
+            base_img = await get_image_from_url(room_image.image_url)
+            width, height = base_img.size
+
+        if not width or not height:
+            raise HTTPException(status_code=400, detail="width and height are required when room_image_id is not provided")
+
+        # Create binary mask
+        mask = Image.new("L", (width, height), 0)
+        draw = ImageDraw.Draw(mask)
+        # Flatten list of [x,y] to tuples
+        polygon = [(int(x), int(y)) for x, y in request.points]
+        if len(polygon) < 3:
+            raise HTTPException(status_code=400, detail="At least 3 points are required to form a polygon")
+        draw.polygon(polygon, fill=255)
+
+        # Encode to data URL (PNG)
+
+        buf = io.BytesIO()
+        mask.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        data_url = f"data:image/png;base64,{b64}"
+        return PolygonMaskResponse(mask_data_url=data_url)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"mask_from_polygon failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/segment", response_model=SegmentResponse)
+async def segment(
+    request: SegmentRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    AI segmentation assist: returns binary mask(s) data URLs for the requested class.
+    Uses Gemini image generation per official docs to output mask images (beta).
+    """
+    try:
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+
+        service = DesignTransformationService()
+        masks = await service.gemini.segment_image(
+            reference_image=image,
+            segment_class=request.segment_class,
+            points=request.points,
+            num_masks=request.num_masks,
+        )
+
+        data_urls: List[str] = []
+        for m in masks:
+            buf = io.BytesIO()
+            m.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(f"data:image/png;base64,{b64}")
+
+        return SegmentResponse(mask_data_urls=data_urls)
+    except Exception as e:
+        logger.error(f"segment failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.post("/transform-backsplash", response_model=TransformationResponse)
@@ -824,19 +1242,55 @@ STRICT MODE (apply only if drift is high):
         # Optional: grounded product suggestions using requested changes + diffs
         products: List[Dict[str, Any]] = []
         sources: List[str] = []
-        if request.enable_grounding and summary:
+        grounding_unavailable: bool = False
+        grounding_notice: Optional[str] = None
+        # Google Search grounding per official docs: https://ai.google.dev/gemini-api/docs/google-search
+        # Structured output (JSON) per docs: https://ai.google.dev/gemini-api/docs/structured-output
+        if request.enable_grounding:
             try:
+                # Canada-first search and local preference: derive location from home if available
+                location_hint: str = "Canada"
+                try:
+                    if room is not None:
+                        from sqlalchemy import select as _select
+                        from backend.models.home import Home as _Home
+                        res_home = await db.execute(_select(_Home).where(_Home.id == room.home_id))
+                        home_obj = res_home.scalar_one_or_none()
+                        if home_obj and getattr(home_obj, "address", None):
+                            addr = home_obj.address or {}
+                            parts = [
+                                addr.get("city"),
+                                addr.get("province"),
+                                addr.get("postal_code"),
+                                addr.get("country") or "Canada",
+                            ]
+                            location_hint = ", ".join([p for p in parts if p]) or "Canada"
+                except Exception:
+                    location_hint = "Canada"
+
                 grounding_input = {
                     "user_prompt": request.prompt,
                     "requested_changes": _extract_requested_changes(request.prompt),
                     "original_summary": original_summary,
                     "new_summary": summary,
+                    "location_hint": location_hint,
                 }
                 grounding = await service.gemini.suggest_products_with_grounding(grounding_input, max_items=5)
                 products = grounding.get("products", []) or []
                 sources = grounding.get("sources", []) or []
             except Exception as e:
                 logger.warning(f"Grounded suggestion failed: {e}")
+                # Fallback: function-calling (no google_search) per official docs
+                try:
+                    fallback = await service.gemini.suggest_products_without_grounding_function_calling(grounding_input, max_items=5)
+                    products = fallback.get("products", []) or []
+                    sources = fallback.get("sources", []) or []
+                except Exception as e2:
+                    logger.warning(f"Fallback (function-calling) also failed: {e2}")
+                grounding_unavailable = True
+                grounding_notice = (
+                    "Google Search grounding unavailable. Showing AI suggestions without live web sources."
+                )
 
         # Update status to completed
         processing_time = int(time.time() - start_time)
@@ -866,6 +1320,8 @@ STRICT MODE (apply only if drift is high):
             summary=summary or {},
             products=products,
             sources=sources,
+            grounding_unavailable=grounding_unavailable,
+            grounding_notice=grounding_notice,
         )
     except HTTPException:
         raise
@@ -1021,42 +1477,486 @@ STRICT MODE (apply only if drift is high):
         # Optional: grounded product suggestions using requested changes + diffs
         products: List[Dict[str, Any]] = []
         sources: List[str] = []
-        if request.enable_grounding and summary:
+        grounding_unavailable: bool = False
+        grounding_notice: Optional[str] = None
+        # Google Search grounding per official docs: https://ai.google.dev/gemini-api/docs/google-search
+        # Structured output (JSON) per docs: https://ai.google.dev/gemini-api/docs/structured-output
+        if request.enable_grounding:
             try:
                 grounding_input = {
                     "user_prompt": request.prompt,
                     "requested_changes": _extract_requested_changes(request.prompt),
                     "original_summary": original_summary,
                     "new_summary": summary,
+                    "location_hint": "Canada",
                 }
                 grounding = await service.gemini.suggest_products_with_grounding(grounding_input, max_items=5)
                 products = grounding.get("products", []) or []
                 sources = grounding.get("sources", []) or []
             except Exception as e:
                 logger.warning(f"Grounded suggestion (upload) failed: {e}")
+                # Fallback: function-calling (no google_search) per official docs
+                try:
+                    fallback = await service.gemini.suggest_products_without_grounding_function_calling(grounding_input, max_items=5)
+                    products = fallback.get("products", []) or []
+                    sources = fallback.get("sources", []) or []
+                except Exception as e2:
+                    logger.warning(f"Fallback (function-calling, upload) also failed: {e2}")
+                grounding_unavailable = True
 
-        message_text = f"Generated {len(image_urls)} variations"
-        if 'strict_regen_applied' in locals() and strict_regen_applied:
-            if drift_scores and max(drift_scores) > DRIFT_THRESHOLD:
-                message_text += " (strict mode applied; high drift persists - consider refining the prompt)"
-            else:
-                message_text += " (strict mode applied due to high drift)"
 
         return PromptedTransformUploadResponse(
             success=True,
-            message=message_text,
+            message=f"Generated {len(image_urls)} variations",
             num_variations=len(image_urls),
             image_urls=image_urls,
             summary=summary or {},
             products=products,
             sources=sources,
+            grounding_unavailable=grounding_unavailable,
+            grounding_notice=grounding_notice,
         )
-
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in transform_prompted_upload: {str(e)}", exc_info=True)
+        logger.error(f"transform_prompted_upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/virtual-staging-upload", response_model=PromptedTransformUploadResponse)
+async def virtual_staging_upload(request: VirtualStagingUploadRequest):
+    """
+    Virtual Staging for uploaded images (no Digital Twin required).
+    Accepts a base64 data URL and returns hosted URLs or data URLs of results.
+    """
+    try:
+        # Decode uploaded image
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Generate
+        service = DesignTransformationService()
+        transformed_images = await service.transform_virtual_staging(
+            image=image,
+            style_preset=request.style_preset,
+            style_prompt=request.style_prompt,
+            furniture_density=request.furniture_density,
+            lock_envelope=request.lock_envelope,
+            num_variations=request.num_variations,
+        )
+
+        # Upload to storage when configured; else return data URLs
+        image_urls: List[str] = []
+        storage_service = TransformationStorageService()
+        uploaded_session_id = str(uuid.uuid4())
+        for idx, img in enumerate(transformed_images, start=1):
+            if storage_service.storage_client is not None:
+                try:
+                    upload_url = storage_service.storage_client.upload_transformation_image(
+                        image=img,
+                        transformation_id=uploaded_session_id,
+                        variation_number=idx,
+                        file_extension="jpg",
+                    )
+                    url: Optional[str] = upload_url
+                    if getattr(storage_service, "storage_type", "").lower() == "gcs" and getattr(storage_service.storage_client, "generate_signed_url", None):
+                        try:
+                            blob_path = f"transformations/{uploaded_session_id}/variation_{idx}.jpg"
+                            url = storage_service.storage_client.generate_signed_url(blob_path)
+                        except Exception:
+                            url = upload_url
+                    image_urls.append(url)
+                    continue
+                except Exception as e:
+                    logger.warning(f"Upload to storage failed, falling back to data URL: {e}")
+            # Fallback to data URL
+            try:
+                buf = io.BytesIO()
+                img = img.convert("RGB")
+                img.save(buf, format="JPEG", quality=90)
+                encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+                image_urls.append(f"data:image/jpeg;base64,{encoded}")
+            except Exception as e:
+                logger.warning(f"Failed to encode generated image: {e}")
+
+        # Analyze results
+        summary: Dict[str, Any] = {}
+        try:
+            first_img = transformed_images[0] if transformed_images else None
+            if first_img:
+                summary = await service.gemini.analyze_design(first_img)
+        except Exception as e:
+            logger.warning(f"Design analysis (virtual-staging-upload) failed: {e}")
+            summary = {}
+
+        # Diff-aware grounding (optional)
+        products: List[Dict[str, Any]] = []
+        sources: List[str] = []
+        grounding_unavailable: bool = False
+        grounding_notice: Optional[str] = None
+        if getattr(request, "enable_grounding", False):
+            try:
+                original_summary: Dict[str, Any] = {}
+                try:
+                    original_summary = await service.gemini.analyze_design(image)
+                except Exception:
+                    original_summary = {}
+                user_prompt = f"Virtual staging. Preset: {request.style_preset or ''}. Style: {request.style_prompt or ''}. Density: {request.furniture_density}."
+                grounding_input = {
+                    "user_prompt": user_prompt,
+                    "requested_changes": ["furniture", "decor"],
+                    "original_summary": original_summary,
+                    "new_summary": summary,
+                    "location_hint": "Canada",
+                }
+                grounding = await service.gemini.suggest_products_with_grounding(grounding_input, max_items=5)
+                products = grounding.get("products", []) or []
+                sources = grounding.get("sources", []) or []
+            except Exception as e:
+                logger.warning(f"Grounded suggestion (virtual-staging-upload) failed: {e}")
+                grounding_unavailable = True
+                grounding_notice = (
+                    "Google Search grounding unavailable. Showing AI suggestions without live web sources."
+                )
+                try:
+                    fallback = await service.gemini.suggest_products_without_grounding_function_calling(grounding_input, max_items=5)  # type: ignore[name-defined]
+                    products = fallback.get("products", []) or []
+                    sources = fallback.get("sources", []) or []
+                except Exception as e2:
+                    logger.warning(f"Fallback (function-calling, virtual-staging-upload) also failed: {e2}")
+
+        return PromptedTransformUploadResponse(
+            success=True,
+            message=f"Generated {len(image_urls)} variations",
+            num_variations=len(image_urls),
+            image_urls=image_urls,
+            summary=summary or {},
+            products=products,
+            sources=sources,
+            grounding_unavailable=grounding_unavailable,
+            grounding_notice=grounding_notice,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"virtual_staging_upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/unstage-upload", response_model=PromptedTransformUploadResponse)
+async def unstage_upload(request: UnstagingUploadRequest):
+    """
+    Unstaging for uploaded images (no Digital Twin): remove furnishings/decor.
+    """
+    try:
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+        image = Image.open(io.BytesIO(image_bytes))
+
+        service = DesignTransformationService()
+        transformed_images = await service.transform_unstaging(
+            image=image,
+            strength=request.strength,
+            num_variations=request.num_variations,
+        )
+
+        image_urls: List[str] = []
+        storage_service = TransformationStorageService()
+        uploaded_session_id = str(uuid.uuid4())
+        for idx, img in enumerate(transformed_images, start=1):
+            if storage_service.storage_client is not None:
+                try:
+                    upload_url = storage_service.storage_client.upload_transformation_image(
+                        image=img,
+                        transformation_id=uploaded_session_id,
+                        variation_number=idx,
+                        file_extension="jpg",
+                    )
+                    url: Optional[str] = upload_url
+                    if getattr(storage_service, "storage_type", "").lower() == "gcs" and getattr(storage_service.storage_client, "generate_signed_url", None):
+                        try:
+                            blob_path = f"transformations/{uploaded_session_id}/variation_{idx}.jpg"
+                            url = storage_service.storage_client.generate_signed_url(blob_path)
+                        except Exception:
+                            url = upload_url
+                    image_urls.append(url)
+                    continue
+                except Exception as e:
+                    logger.warning(f"Upload to storage failed, falling back to data URL: {e}")
+            try:
+                buf = io.BytesIO()
+                img = img.convert("RGB")
+                img.save(buf, format="JPEG", quality=90)
+                encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+                image_urls.append(f"data:image/jpeg;base64,{encoded}")
+            except Exception as e:
+                logger.warning(f"Failed to encode generated image: {e}")
+
+        return PromptedTransformUploadResponse(
+            success=True,
+            message=f"Generated {len(image_urls)} variations",
+            num_variations=len(image_urls),
+            image_urls=image_urls,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"unstage_upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/edit-with-mask-upload", response_model=PromptedTransformUploadResponse)
+async def edit_with_mask_upload(request: MaskedEditUploadRequest):
+    """
+    Masked edit for uploaded images (no Digital Twin): remove/replace within white mask.
+    """
+    try:
+        # Decode image
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Decode mask
+        if not request.mask_data_url.startswith("data:"):
+            raise HTTPException(status_code=400, detail="mask_data_url must be a data URL")
+        _, b64mask = request.mask_data_url.split(",", 1)
+        mask_bytes = base64.b64decode(b64mask)
+
+        service = DesignTransformationService()
+        transformed_images = await service.transform_masked_edit(
+            image=image,
+            mask_image=mask_bytes,
+            operation=request.operation,
+            replacement_prompt=request.replacement_prompt,
+            num_variations=request.num_variations,
+        )
+
+        image_urls: List[str] = []
+        storage_service = TransformationStorageService()
+        uploaded_session_id = str(uuid.uuid4())
+        for idx, img in enumerate(transformed_images, start=1):
+            if storage_service.storage_client is not None:
+                try:
+                    upload_url = storage_service.storage_client.upload_transformation_image(
+                        image=img,
+                        transformation_id=uploaded_session_id,
+                        variation_number=idx,
+                        file_extension="jpg",
+                    )
+                    url: Optional[str] = upload_url
+                    if getattr(storage_service, "storage_type", "").lower() == "gcs" and getattr(storage_service.storage_client, "generate_signed_url", None):
+                        try:
+                            blob_path = f"transformations/{uploaded_session_id}/variation_{idx}.jpg"
+                            url = storage_service.storage_client.generate_signed_url(blob_path)
+                        except Exception:
+                            url = upload_url
+                    image_urls.append(url)
+                    continue
+                except Exception as e:
+                    logger.warning(f"Upload to storage failed, falling back to data URL: {e}")
+            try:
+                buf = io.BytesIO()
+                img = img.convert("RGB")
+                img.save(buf, format="JPEG", quality=90)
+                encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+                image_urls.append(f"data:image/jpeg;base64,{encoded}")
+            except Exception as e:
+                logger.warning(f"Failed to encode generated image: {e}")
+
+        return PromptedTransformUploadResponse(
+            success=True,
+            message=f"Generated {len(image_urls)} variations",
+            num_variations=len(image_urls),
+            image_urls=image_urls,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"edit_with_mask_upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/segment-upload", response_model=SegmentResponse)
+async def segment_upload(request: SegmentUploadRequest):
+    """
+    AI segmentation assist for uploaded images: returns mask data URLs.
+    """
+    try:
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+        image = Image.open(io.BytesIO(image_bytes))
+
+        service = DesignTransformationService()
+        masks = await service.gemini.segment_image(
+            reference_image=image,
+            segment_class=request.segment_class,
+            points=request.points,
+            num_masks=request.num_masks,
+        )
+
+        data_urls: List[str] = []
+        for m in masks:
+            buf = io.BytesIO()
+            m.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(f"data:image/png;base64,{b64}")
+
+        return SegmentResponse(mask_data_urls=data_urls)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"segment_upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/multi-angle-upload", response_model=PromptedTransformUploadResponse)
+async def multi_angle_upload(request: MultiAngleUploadRequest):
+    """
+    Generate small, plausible viewpoint variations of an uploaded room image.
+    Returns 1-4 images representing slight camera shifts (yaw/pitch) while preserving scene content.
+    """
+    try:
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+        image = Image.open(io.BytesIO(image_bytes))
+
+        service = DesignTransformationService()
+        generated = await service.transform_multi_angle_views(
+            image=image,
+            num_angles=request.num_angles,
+            yaw_degrees=request.yaw_degrees,
+            pitch_degrees=request.pitch_degrees,
+        )
+
+        image_urls: List[str] = []
+        storage_service = TransformationStorageService()
+        uploaded_session_id = str(uuid.uuid4())
+        for idx, img in enumerate(generated, start=1):
+            if storage_service.storage_client is not None:
+                try:
+                    upload_url = await storage_service.upload_transformed_image(
+                        img,
+                        uploaded_session_id=uploaded_session_id,
+                        index=idx,
+                        variant="multi_angle",
+                    )
+                    url = upload_url
+                    if storage_service.storage_client is not None:
+                        try:
+                            url = await storage_service.sign_url(upload_url)
+                        except Exception:
+                            url = upload_url
+                    image_urls.append(url)
+                    continue
+                except Exception as e:
+                    logger.warning(f"Upload to storage failed, falling back to data URL: {e}")
+            try:
+                buf = io.BytesIO()
+                img = img.convert("RGB")
+                img.save(buf, format="JPEG", quality=90)
+                encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+                image_urls.append(f"data:image/jpeg;base64,{encoded}")
+            except Exception as e:
+                logger.warning(f"Failed to encode generated image: {e}")
+
+        return PromptedTransformUploadResponse(
+            success=True,
+            message=f"Generated {len(image_urls)} multi-angle views",
+            num_variations=len(image_urls),
+            image_urls=image_urls,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"multi_angle_upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/enhance-upload", response_model=PromptedTransformUploadResponse)
+async def enhance_upload(request: EnhanceUploadRequest):
+    """
+    Enhance image quality (denoise, deblur, sharpen, optional 2x upscale) for uploaded images.
+    Preserves scene content and composition.
+    """
+    try:
+        data = request.image_data_url.strip()
+        try:
+            b64_part = data.split(",", 1)[1] if data.startswith("data:") else data
+            image_bytes = base64.b64decode(b64_part)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
+        image = Image.open(io.BytesIO(image_bytes))
+
+        service = DesignTransformationService()
+        enhanced_list = await service.enhance_quality(
+            image=image,
+            upscale_2x=bool(request.upscale_2x),
+        )
+        enhanced = enhanced_list[0] if enhanced_list else image
+
+        image_urls: List[str] = []
+        storage_service = TransformationStorageService()
+        if storage_service.storage_client is not None:
+            try:
+                upload_url = await storage_service.upload_transformed_image(
+                    enhanced,
+                    uploaded_session_id=str(uuid.uuid4()),
+                    index=1,
+                    variant="enhanced",
+                )
+                url = upload_url
+                if storage_service.storage_client is not None:
+                    try:
+                        url = await storage_service.sign_url(upload_url)
+                    except Exception:
+                        url = upload_url
+                image_urls.append(url)
+            except Exception as e:
+                logger.warning(f"Upload to storage failed, falling back to data URL: {e}")
+        if not image_urls:
+            try:
+                buf = io.BytesIO()
+                enhanced = enhanced.convert("RGB")
+                enhanced.save(buf, format="JPEG", quality=92)
+                encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+                image_urls.append(f"data:image/jpeg;base64,{encoded}")
+            except Exception as e:
+                logger.warning(f"Failed to encode enhanced image: {e}")
+
+        return PromptedTransformUploadResponse(
+            success=True,
+            message="Enhanced image",
+            num_variations=len(image_urls),
+            image_urls=image_urls,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"enhance_upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 # Analyze uploaded image (no Digital Twin) for idea chips

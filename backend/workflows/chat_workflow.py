@@ -48,12 +48,13 @@ class ChatState(BaseWorkflowState, total=False):
     intent: Optional[str]
     requires_action: bool
     suggested_actions: List[Dict[str, Any]]
+    suggested_questions: List[str]
 
 
 class ChatWorkflow:
     """
     Production-ready chat orchestration workflow.
-    
+
     Features:
     - Context retrieval from RAG service
     - Conversation history management
@@ -62,7 +63,7 @@ class ChatWorkflow:
     - Action suggestions (cost estimation, product matching, etc.)
     - Comprehensive error handling
     """
-    
+
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
         self.orchestrator = WorkflowOrchestrator(
@@ -74,11 +75,11 @@ class ChatWorkflow:
         self.conversation_service = ConversationService(db_session)
         self.gemini_client = GeminiClient()
         self.graph = self._build_graph()
-    
+
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph workflow."""
         workflow = StateGraph(ChatState)
-        
+
         # Add nodes
         workflow.add_node("validate_input", self._validate_input)
         workflow.add_node("classify_intent", self._classify_intent)
@@ -88,7 +89,7 @@ class ChatWorkflow:
         workflow.add_node("suggest_actions", self._suggest_actions)
         workflow.add_node("save_conversation", self._save_conversation)
         workflow.add_node("finalize", self._finalize)
-        
+
         # Define edges
         workflow.set_entry_point("validate_input")
         workflow.add_edge("validate_input", "classify_intent")
@@ -99,10 +100,10 @@ class ChatWorkflow:
         workflow.add_edge("suggest_actions", "save_conversation")
         workflow.add_edge("save_conversation", "finalize")
         workflow.add_edge("finalize", END)
-        
+
         # Compile with checkpointing
         return workflow.compile(checkpointer=MemorySaver())
-    
+
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the chat workflow."""
         try:
@@ -134,6 +135,7 @@ class ChatWorkflow:
                 "context_sources": [],
                 "requires_action": False,
                 "suggested_actions": [],
+                "suggested_questions": [],
                 "response_metadata": {},
                 "retrieved_context": None,
                 "ai_response": None,
@@ -143,9 +145,9 @@ class ChatWorkflow:
             # Execute workflow
             config = {"configurable": {"thread_id": conversation_id}}
             final_state = await self.graph.ainvoke(state, config=config)
-            
+
             return final_state
-            
+
         except Exception as e:
             logger.error(f"Chat workflow execution failed: {e}", exc_info=True)
             raise WorkflowError(
@@ -153,21 +155,21 @@ class ChatWorkflow:
                 original_error=e,
                 recoverable=False
             )
-    
+
     async def _validate_input(self, state: ChatState) -> ChatState:
         """Validate input parameters."""
         state = self.orchestrator.mark_node_start(state, "validate_input")
-        
+
         try:
             user_message = state.get("user_message")
-            
+
             if not user_message or not user_message.strip():
                 raise WorkflowError(
                     "user_message is required and cannot be empty",
                     node_name="validate_input",
                     recoverable=False
                 )
-            
+
             # Validate message length
             if len(user_message) > 5000:
                 self.orchestrator.add_warning(
@@ -176,23 +178,23 @@ class ChatWorkflow:
                     "validate_input"
                 )
                 state["user_message"] = user_message[:5000]
-            
+
             logger.info(f"Input validated for conversation: {state['conversation_id']}")
             state = self.orchestrator.mark_node_complete(state, "validate_input")
-            
+
         except Exception as e:
             state = self.orchestrator.add_error(state, e, "validate_input", recoverable=False)
             raise
-        
+
         return state
-    
+
     async def _classify_intent(self, state: ChatState) -> ChatState:
         """Classify user intent to determine workflow path."""
         state = self.orchestrator.mark_node_start(state, "classify_intent")
-        
+
         try:
             user_message = state["user_message"]
-            
+
             # Use Gemini to classify intent
             classification_prompt = f"""Classify the user's intent from this message. Return ONLY a JSON object.
 
@@ -203,6 +205,9 @@ Classify into ONE of these intents:
 - "cost_estimate": User wants cost estimation for a project
 - "product_recommendation": User wants product recommendations
 - "design_idea": User wants design or style suggestions
+- "design_transformation": User requests transforming an image (paint, flooring, cabinets, furniture, staging)
+- "diy_guide": User wants a step-by-step DIY guide with materials/tools/safety
+- "pdf_request": User wants a PDF export of a plan/guide or the conversation
 - "general_chat": General conversation or greeting
 
 Return JSON:
@@ -211,76 +216,56 @@ Return JSON:
     "confidence": <0.0-1.0>,
     "requires_home_data": <true/false>
 }}"""
-            
+
             try:
                 response = await self.gemini_client.generate_text(
                     prompt=classification_prompt,
                     temperature=0.1
                 )
-                
+
                 # Parse JSON response
                 import json
                 classification = self._parse_json_response(response)
-                
+
                 state["intent"] = classification.get("intent", "question")
                 state["response_metadata"]["intent_confidence"] = classification.get("confidence", 0.5)
-                
+
                 logger.info(f"Intent classified: {state['intent']}")
-                
+
             except Exception as e:
                 logger.warning(f"Intent classification failed, defaulting to 'question': {e}")
                 state["intent"] = "question"
                 state["response_metadata"]["intent_confidence"] = 0.5
-            
+
             state = self.orchestrator.mark_node_complete(state, "classify_intent")
-            
+
         except Exception as e:
             state = self.orchestrator.add_error(state, e, "classify_intent", recoverable=True)
             # Default to question intent on error
             state["intent"] = "question"
-        
+
         return state
-    
+
     async def _retrieve_context(self, state: ChatState) -> ChatState:
         """Retrieve relevant context from RAG service."""
         state = self.orchestrator.mark_node_start(state, "retrieve_context")
-        
+
         try:
-            home_id = state.get("home_id")
-            user_message = state["user_message"]
-            
-            if home_id:
-                # Retrieve context using RAG service
-                context = await self.rag_service.assemble_context(
-                    db=self.db,
-                    query=user_message,
-                    home_id=home_id,
-                    k=8,
-                    include_images=True
-                )
-                
-                state["retrieved_context"] = context
-                state["context_sources"] = context.get("metadata", {}).get("sources", [])
-                
-                logger.info(
-                    f"Retrieved {context['metadata']['total_chunks']} context chunks "
-                    f"from sources: {', '.join(state['context_sources'])}"
-                )
-            else:
-                logger.info("No home_id provided, skipping context retrieval")
-                state["retrieved_context"] = None
-                state["context_sources"] = []
-            
+            # Digital Twin context temporarily disabled; proceed without RAG retrieval
+            state["retrieved_context"] = None
+            state["context_sources"] = []
+            logger.info("Digital Twin context disabled for chat; skipping context retrieval")
+
             state = self.orchestrator.mark_node_complete(state, "retrieve_context")
-            
+
         except Exception as e:
             state = self.orchestrator.add_error(state, e, "retrieve_context", recoverable=True)
             # Continue without context
             state["retrieved_context"] = None
             state["context_sources"] = []
-        
+
         return state
-    
+
     async def _load_conversation_history(self, state: ChatState) -> ChatState:
         """Load conversation history from database."""
         state = self.orchestrator.mark_node_start(state, "load_conversation_history")
@@ -365,6 +350,8 @@ Return JSON:
             suggested_actions = []
 
             # Suggest actions based on intent
+            suggested_questions: List[str] = []
+
             if intent == "cost_estimate":
                 suggested_actions.append({
                     "action": "get_detailed_estimate",
@@ -372,6 +359,12 @@ Return JSON:
                     "description": "Get a comprehensive cost breakdown for your project",
                     "agent": "cost_estimation"
                 })
+                suggested_questions.extend([
+                    "What are the room dimensions (L x W x H)?",
+                    "Include labor or materials only?",
+                    "What material quality/tier and budget range?",
+                    "What is your location (for Canada pricing)?",
+                ])
 
             elif intent == "product_recommendation":
                 suggested_actions.append({
@@ -380,6 +373,12 @@ Return JSON:
                     "description": "Search for products that fit your space and style",
                     "agent": "product_matching"
                 })
+                suggested_questions.extend([
+                    "Which room and its dimensions?",
+                    "What budget range and style preference?",
+                    "Any must-have materials or brands (.ca vendors preferred)?",
+                    "Do you need eco-friendly or low-VOC options?",
+                ])
 
             elif intent == "design_idea":
                 suggested_actions.append({
@@ -388,6 +387,50 @@ Return JSON:
                     "description": "Create AI-generated design visualizations",
                     "agent": "design_studio"
                 })
+                suggested_questions.extend([
+                    "Which room photo should I reference?",
+                    "What styles or color palettes do you like?",
+                    "Any elements to keep (flooring, cabinets, furniture)?",
+                ])
+
+            elif intent == "design_transformation":
+                suggested_actions.append({
+                    "action": "open_design_studio",
+                    "label": "Open Design Studio",
+                    "description": "Apply AI transformations (paint, flooring, cabinets, staging)",
+                    "agent": "design_studio"
+                })
+                suggested_questions.extend([
+                    "Which attached photo should I use?",
+                    "What exact edits (paint color, flooring type, cabinets)?",
+                    "Should I preserve existing furniture and layout?",
+                ])
+
+            elif intent == "diy_guide":
+                suggested_actions.append({
+                    "action": "generate_diy_guide",
+                    "label": "Generate DIY Step-by-Step Guide",
+                    "description": "Get a structured plan with tools, materials, time, and safety",
+                    "agent": "diy_guide"
+                })
+                suggested_questions.extend([
+                    "What is your skill level and available time?",
+                    "Do you already have any of the required tools?",
+                    "What is your budget and deadline?",
+                ])
+
+            elif intent == "pdf_request":
+                suggested_actions.append({
+                    "action": "export_pdf",
+                    "label": "Export as PDF",
+                    "description": "Create a PDF document of this plan/guide with images",
+                    "agent": "pdf_export"
+                })
+                suggested_questions.extend([
+                    "Include images and a materials checklist?",
+                    "What title should I use for the PDF?",
+                    "Do you want a Canadian vendor list appended?",
+                ])
 
             # Persona/Scenario specific suggestions
             p = state.get("persona")
@@ -407,19 +450,74 @@ Return JSON:
                     "agent": "diy_planner"
                 })
 
-            # Always suggest exploring the digital twin
-            if state.get("home_id"):
-                suggested_actions.append({
-                    "action": "explore_digital_twin",
-                    "label": "Explore Your Digital Twin",
-                    "description": "View your home's 3D model and room details",
-                    "agent": "digital_twin"
-                })
+
+            # Default suggested questions for general queries
+            if not suggested_questions:
+                suggested_questions.extend([
+                    "Which room or area are we focusing on?",
+                    "What are the dimensions and current materials?",
+                    "What is your budget and timeline?",
+                    "Do you prefer DIY plan or contractor quotes?",
+                ])
+
+            # Context-aware refinement of follow-up questions using conversation history
+            try:
+                hist = state.get("conversation_history", []) or []
+                # Build minimal history text (last 6 messages)
+                history_lines = []
+                for msg in hist[-6:]:
+                    role = "User" if msg.get("role") == "user" else "Assistant"
+                    content = (msg.get("content") or "")[:400]
+                    history_lines.append(f"{role}: {content}")
+                history_text = "\n".join(history_lines)
+                user_message = state.get("user_message", "")
+                intent_label = state.get("intent") or "question"
+                persona_label = state.get("persona") or ""
+                scenario_label = state.get("scenario") or ""
+
+                gen_prompt = f"""Given the conversation and latest message, propose 3-4 short follow-up questions that move the user forward.
+They must be context-aware, <= 80 characters each, and easy to tap as chips.
+Return ONLY a JSON array of strings.
+
+Conversation (most recent first):
+{history_text}
+
+Latest message: {user_message}
+Intent: {intent_label}
+Persona: {persona_label}
+Scenario: {scenario_label}
+"""
+                resp = await self.gemini_client.generate_text(
+                    prompt=gen_prompt,
+                    temperature=0.2,
+                    max_tokens=200,
+                )
+                import json, re
+                m = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', resp, re.DOTALL)
+                arr_text = m.group(1) if m else resp.strip()
+                arr = json.loads(arr_text)
+                if isinstance(arr, list):
+                    cleaned = []
+                    for q in arr:
+                        if isinstance(q, str):
+                            q = q.strip()
+                            if q and len(q) <= 100 and q not in cleaned:
+                                cleaned.append(q)
+                    if cleaned:
+                        # Merge with existing, keep order, cap at 4
+                        merged = []
+                        for q in cleaned + suggested_questions:
+                            if q not in merged:
+                                merged.append(q)
+                        suggested_questions = merged[:4]
+            except Exception as fe:
+                logger.debug(f"Contextual follow-up generation skipped: {fe}")
 
             state["suggested_actions"] = suggested_actions
+            state["suggested_questions"] = suggested_questions
             state["requires_action"] = len(suggested_actions) > 0
 
-            logger.info(f"Suggested {len(suggested_actions)} actions")
+            logger.info(f"Suggested {len(suggested_actions)} actions and {len(suggested_questions)} questions")
             state = self.orchestrator.mark_node_complete(state, "suggest_actions")
 
         except Exception as e:
@@ -476,6 +574,7 @@ Return JSON:
                     content=ai_response,
                     metadata={
                         "suggested_actions": state.get("suggested_actions", []),
+                        "suggested_questions": state.get("suggested_questions", []),
                         "persona": state.get("persona"),
                         "scenario": state.get("scenario"),
                         **state.get("response_metadata", {})
@@ -509,6 +608,7 @@ Return JSON:
                 "ai_response": state.get("ai_response"),
                 "intent": state.get("intent"),
                 "suggested_actions": state.get("suggested_actions", []),
+                "suggested_questions": state.get("suggested_questions", []),
                 "context_sources": state.get("context_sources", []),
                 "metadata": {
                     **state.get("response_metadata", {}),
@@ -552,13 +652,13 @@ Your capabilities:
 - Help plan home improvement projects
 
 Guidelines:
-- Be friendly, helpful, and professional
-- Provide specific, data-backed answers when home data is available
-- If you don't have specific data, acknowledge it and provide general guidance
-- Use emojis sparingly to make responses engaging
-- Format responses clearly with bullet points and sections when appropriate
-- Always prioritize accuracy over speculation
-- Keep responses concise but informative (aim for 150-300 words unless more detail is requested)
+- Be concise, clear, and professional; avoid fluff.
+- Ground answers in the conversation history; don't repeat long lists already given.
+- Prefer 3–6 short bullets or 1–3 short paragraphs; aim for 60–120 words unless the user asks for more.
+- If critical info is missing, ask 1–2 specific clarifying questions.
+- End with a single next-step prompt (e.g., "Would you like A or B?").
+- Keep Canadian context in mind; prefer .ca vendors when mentioning products.
+- Do not reference any Digital Twin or home_id unless explicitly provided by the user.
 """)
 
         # Persona-specific guidance
