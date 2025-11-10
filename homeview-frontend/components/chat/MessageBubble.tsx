@@ -1,12 +1,13 @@
 'use client';
 
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Download, ExternalLink, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/lib/types/chat';
 import { useState } from 'react';
 import { MessageFeedback, type FeedbackData } from './MessageFeedback';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Image from 'next/image';
 
 
 interface MessageBubbleProps {
@@ -87,6 +88,104 @@ export function MessageBubble({ message, onQuestionClick, onActionClick }: Messa
             </div>
           )}
         </div>
+
+        {/* Generated Images - AI Design Visualizations */}
+        {!isUser && message.generated_images && message.generated_images.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <div className="text-xs font-medium text-gray-600 mb-2">
+              🎨 AI-Generated Design Concepts
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {message.generated_images.map((img, index) => (
+                <div
+                  key={index}
+                  className="group relative rounded-lg overflow-hidden border-2 border-gray-200 hover:border-primary transition-all shadow-sm hover:shadow-md"
+                >
+                  {/* Image */}
+                  <div className="relative aspect-video bg-gray-100">
+                    <img
+                      src={`http://localhost:8000/${img.url}`}
+                      alt={img.caption || `Design concept ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Hover Overlay */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                      <button
+                        onClick={() => window.open(`http://localhost:8000/${img.url}`, '_blank')}
+                        className="p-2 bg-white rounded-full hover:bg-gray-100 transition-colors"
+                        title="View full size"
+                      >
+                        <Maximize2 className="w-4 h-4 text-gray-700" />
+                      </button>
+                      <a
+                        href={`http://localhost:8000/${img.url}`}
+                        download
+                        className="p-2 bg-white rounded-full hover:bg-gray-100 transition-colors"
+                        title="Download image"
+                      >
+                        <Download className="w-4 h-4 text-gray-700" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Style Badge */}
+                  {img.style && (
+                    <div className="absolute top-2 left-2">
+                      <span className="px-2 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-700 shadow-sm">
+                        {img.style}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Image Info & Actions */}
+                  <div className="p-3 bg-white border-t border-gray-100">
+                    {img.caption && (
+                      <p className="text-xs text-gray-600 mb-3">{img.caption}</p>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => console.log('Edit image:', img)}
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-primary/10 hover:text-primary rounded text-xs font-medium text-gray-700 transition-colors"
+                        title="Edit this image with AI"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => console.log('Save to project:', img)}
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-primary/10 hover:text-primary rounded text-xs font-medium text-gray-700 transition-colors"
+                        title="Save to project gallery"
+                      >
+                        💾 Save
+                      </button>
+                      <button
+                        onClick={() => console.log('Regenerate:', img)}
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-100 hover:bg-primary/10 hover:text-primary rounded text-xs font-medium text-gray-700 transition-colors"
+                        title="Create variation"
+                      >
+                        🔄 Vary
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Open in Design Studio Button */}
+            <button
+              onClick={() => {
+                // TODO: Implement navigation to Design Studio with these images
+                console.log('Open in Design Studio', message.generated_images);
+              }}
+              className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open in Design Studio
+            </button>
+          </div>
+        )}
 
         {/* Metadata - Images */}
         {message.metadata?.images && message.metadata.images.length > 0 && (

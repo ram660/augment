@@ -20,6 +20,19 @@ from backend.services.conversation_service import ConversationService
 from backend.integrations.gemini.client import GeminiClient
 from backend.integrations.agentlightning.tracker import AgentTracker
 from backend.integrations.agentlightning.rewards import RewardCalculator
+from backend.services.event_bus import (
+    get_event_bus,
+    publish_workflow_started,
+    publish_workflow_completed,
+    publish_workflow_failed,
+    publish_chat_message_received,
+    publish_chat_response_generated
+)
+from backend.services.persona_service import get_persona_service, SafetyLevel
+from backend.services.cache_service import get_cache_service
+from backend.services.journey_manager import get_journey_manager, JourneyStatus
+from backend.services.journey_persistence_service import JourneyPersistenceService
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +74,12 @@ class ChatState(BaseWorkflowState, total=False):
     generated_images: Optional[List[str]]
     visual_aids: Optional[List[Dict[str, Any]]]
 
+    # Journey tracking
+    journey_id: Optional[str]
+    journey_status: Optional[str]
+    current_step: Optional[Dict[str, Any]]
+    next_steps: Optional[List[Dict[str, Any]]]
+
 
 class ChatWorkflow:
     """
@@ -90,6 +109,21 @@ class ChatWorkflow:
         self.tracker = AgentTracker(agent_name="chat_agent")
         self.reward_calculator = RewardCalculator()
 
+        # Initialize event bus
+        self.event_bus = get_event_bus()
+
+        # Initialize persona service
+        self.persona_service = get_persona_service()
+
+        # Initialize cache service
+        self.cache_service = get_cache_service()
+
+        # Initialize journey manager (in-memory)
+        self.journey_manager = get_journey_manager()
+
+        # Initialize journey persistence service (database)
+        self.journey_persistence_service = JourneyPersistenceService(db_session)
+
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
@@ -99,6 +133,7 @@ class ChatWorkflow:
         # Add nodes
         workflow.add_node("validate_input", self._validate_input)
         workflow.add_node("classify_intent", self._classify_intent)
+        workflow.add_node("manage_journey", self._manage_journey)  # NEW: Journey management
         workflow.add_node("retrieve_context", self._retrieve_context)
         workflow.add_node("load_conversation_history", self._load_conversation_history)
         workflow.add_node("generate_response", self._generate_response)
@@ -110,7 +145,8 @@ class ChatWorkflow:
         # Define edges
         workflow.set_entry_point("validate_input")
         workflow.add_edge("validate_input", "classify_intent")
-        workflow.add_edge("classify_intent", "retrieve_context")
+        workflow.add_edge("classify_intent", "manage_journey")  # NEW: Journey management after intent
+        workflow.add_edge("manage_journey", "retrieve_context")
         workflow.add_edge("retrieve_context", "load_conversation_history")
         workflow.add_edge("load_conversation_history", "generate_response")
         workflow.add_edge("generate_response", "enrich_with_multimodal")  # NEW: Add multimodal content
@@ -124,15 +160,41 @@ class ChatWorkflow:
 
     async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the chat workflow."""
+        workflow_id = str(uuid.uuid4())
+        conversation_id = input_data.get("conversation_id", str(uuid.uuid4()))
+        start_time = datetime.utcnow()
+
         try:
+            # Publish workflow started event
+            await publish_workflow_started(
+                workflow_id=workflow_id,
+                workflow_name=self.orchestrator.workflow_name,
+                metadata={
+                    "conversation_id": conversation_id,
+                    "user_id": input_data.get("user_id"),
+                    "mode": input_data.get("mode", "agent")
+                }
+            )
+
+            # Publish chat message received event
+            await publish_chat_message_received(
+                conversation_id=conversation_id,
+                message=input_data.get("user_message", ""),
+                user_id=input_data.get("user_id", "anonymous"),
+                metadata={
+                    "workflow_id": workflow_id,
+                    "persona": input_data.get("persona"),
+                    "scenario": input_data.get("scenario")
+                }
+            )
+
             # Create initial state as ChatState TypedDict
-            conversation_id = input_data.get("conversation_id", str(uuid.uuid4()))
             state: ChatState = {
                 # Workflow metadata
-                "workflow_id": str(uuid.uuid4()),
+                "workflow_id": workflow_id,
                 "workflow_name": self.orchestrator.workflow_name,
                 "status": WorkflowStatus.PENDING,
-                "started_at": datetime.utcnow().isoformat(),
+                "started_at": start_time.isoformat(),
                 "completed_at": None,
                 "current_node": None,
                 "visited_nodes": [],
@@ -172,10 +234,48 @@ class ChatWorkflow:
             config = {"configurable": {"thread_id": conversation_id}}
             final_state = await self.graph.ainvoke(state, config=config)
 
+            # Publish chat response generated event
+            if final_state.get("ai_response"):
+                await publish_chat_response_generated(
+                    conversation_id=conversation_id,
+                    response=final_state["ai_response"],
+                    metadata={
+                        "workflow_id": workflow_id,
+                        "intent": final_state.get("intent"),
+                        "suggested_actions": final_state.get("suggested_actions", []),
+                        "context_sources": final_state.get("context_sources", [])
+                    }
+                )
+
+            # Publish workflow completed event
+            duration = (datetime.utcnow() - start_time).total_seconds()
+            await publish_workflow_completed(
+                workflow_id=workflow_id,
+                workflow_name=self.orchestrator.workflow_name,
+                duration_seconds=duration,
+                metadata={
+                    "conversation_id": conversation_id,
+                    "nodes_visited": len(final_state.get("visited_nodes", [])),
+                    "errors_count": len(final_state.get("errors", []))
+                }
+            )
+
             return final_state
 
         except Exception as e:
             logger.error(f"Chat workflow execution failed: {e}", exc_info=True)
+
+            # Publish workflow failed event
+            await publish_workflow_failed(
+                workflow_id=workflow_id,
+                workflow_name=self.orchestrator.workflow_name,
+                error=str(e),
+                metadata={
+                    "conversation_id": conversation_id,
+                    "user_id": input_data.get("user_id")
+                }
+            )
+
             raise WorkflowError(
                 f"Chat workflow failed: {str(e)}",
                 original_error=e,
@@ -231,7 +331,10 @@ Classify into ONE of these intents:
 - "cost_estimate": User wants cost estimation for a project
 - "product_recommendation": User wants product recommendations
 - "design_idea": User wants design or style suggestions
+- "design_visualization": User wants to SEE/VISUALIZE design options (keywords: "show me", "visualize", "what would it look like", "generate", "create mockup")
 - "design_transformation": User requests transforming an image (paint, flooring, cabinets, furniture, staging)
+- "before_after": User wants to see before/after comparisons or transformations
+- "material_comparison": User wants to compare materials or finishes visually
 - "diy_guide": User wants a step-by-step DIY guide with materials/tools/safety
 - "pdf_request": User wants a PDF export of a plan/guide or the conversation
 - "general_chat": General conversation or greeting
@@ -269,6 +372,187 @@ Return JSON:
             state = self.orchestrator.add_error(state, e, "classify_intent", recoverable=True)
             # Default to question intent on error
             state["intent"] = "question"
+
+        return state
+
+    async def _manage_journey(self, state: ChatState) -> ChatState:
+        """Manage user journey - detect start, track progress, suggest next steps."""
+        state = self.orchestrator.mark_node_start(state, "manage_journey")
+
+        try:
+            user_id = state.get("user_id")
+            intent = state.get("intent")
+            user_message = state.get("user_message", "").lower()
+            conversation_id = state.get("conversation_id")
+            home_id = state.get("home_id")
+
+            # Initialize journey fields
+            state["journey_id"] = None
+            state["journey_status"] = None
+            state["current_step"] = None
+            state["next_steps"] = []
+
+            if not user_id:
+                logger.debug("No user_id provided, skipping journey management")
+                state = self.orchestrator.mark_node_complete(state, "manage_journey")
+                return state
+
+            # Detect journey start from intent and keywords
+            journey_template_id = None
+
+            # Kitchen renovation journey
+            if ("kitchen" in user_message and any(word in user_message for word in ["renovate", "remodel", "upgrade", "renovation"])):
+                journey_template_id = "kitchen_renovation"
+
+            # DIY project journey
+            elif intent == "diy_guide" or ("diy" in user_message and "project" in user_message):
+                journey_template_id = "diy_project"
+
+            # Bathroom upgrade journey
+            elif ("bathroom" in user_message and any(word in user_message for word in ["renovate", "remodel", "upgrade", "renovation"])):
+                journey_template_id = "bathroom_upgrade"
+
+            # Check if user has an active journey (from database)
+            active_journeys = await self.journey_persistence_service.get_user_journeys(
+                user_id=user_id,
+                status="in_progress"
+            )
+            active_journey = active_journeys[0] if active_journeys else None
+
+            # Start new journey if detected and no active journey
+            if journey_template_id and not active_journey:
+                try:
+                    # Create journey in database (also creates in-memory)
+                    journey = await self.journey_persistence_service.create_journey(
+                        user_id=user_id,
+                        template_id=journey_template_id,
+                        home_id=home_id,
+                        conversation_id=conversation_id
+                    )
+
+                    state["journey_id"] = str(journey.id)
+                    state["journey_status"] = journey.status.value
+
+                    # Get current step from database
+                    if journey.steps:
+                        # Find the first in-progress step
+                        current_step = next(
+                            (step for step in journey.steps if step.status == "in_progress"),
+                            journey.steps[0] if journey.steps else None
+                        )
+
+                        if current_step:
+                            state["current_step"] = {
+                                "step_id": current_step.step_id,
+                                "name": current_step.name,
+                                "description": current_step.description,
+                                "required_actions": current_step.required_actions or []
+                            }
+
+                            # Get next steps (steps after current)
+                            current_index = next(
+                                (i for i, s in enumerate(journey.steps) if s.id == current_step.id),
+                                0
+                            )
+                            next_steps = journey.steps[current_index + 1:current_index + 4]
+                            state["next_steps"] = [
+                                {
+                                    "step_id": step.step_id,
+                                    "name": step.name,
+                                    "description": step.description
+                                }
+                                for step in next_steps
+                            ]
+
+                    logger.info(f"Started journey '{journey_template_id}' for user {user_id} (ID: {journey.id})")
+
+                except Exception as e:
+                    logger.warning(f"Failed to start journey: {e}", exc_info=True)
+
+            # Track progress for active journey
+            elif active_journey:
+                state["journey_id"] = str(active_journey.id)
+                state["journey_status"] = active_journey.status.value
+
+                # Get journey with steps from database
+                journey = await self.journey_persistence_service.get_journey(str(active_journey.id))
+
+                if journey and journey.steps:
+                    # Find the current in-progress step
+                    current_step = next(
+                        (step for step in journey.steps if step.status == "in_progress"),
+                        None
+                    )
+
+                    if current_step:
+                        state["current_step"] = {
+                            "step_id": current_step.step_id,
+                            "name": current_step.name,
+                            "description": current_step.description,
+                            "required_actions": current_step.required_actions or []
+                        }
+
+                        # Auto-complete step based on intent
+                        # For example, if user asks for product recommendations and that's a required action
+                        if intent and current_step.required_actions and intent in current_step.required_actions:
+                            try:
+                                await self.journey_persistence_service.update_step(
+                                    journey_id=str(journey.id),
+                                    step_id=str(current_step.id),
+                                    status="completed",
+                                    progress=100.0,
+                                    data={"completed_via": intent, "message": user_message}
+                                )
+                                logger.info(f"Auto-completed step '{current_step.step_id}' via intent '{intent}'")
+                            except Exception as e:
+                                logger.warning(f"Failed to auto-complete step: {e}", exc_info=True)
+
+                        # Get next steps (steps after current)
+                        current_index = next(
+                            (i for i, s in enumerate(journey.steps) if s.id == current_step.id),
+                            0
+                        )
+                        next_steps = journey.steps[current_index + 1:current_index + 4]
+                        state["next_steps"] = [
+                            {
+                                "step_id": step.step_id,
+                                "name": step.name,
+                                "description": step.description
+                            }
+                            for step in next_steps
+                        ]
+
+                        # Attach uploaded images to current journey step
+                        attachments = state.get("attachments", [])
+                        if attachments and current_step:
+                            image_attachments = [att for att in attachments if att.get("type") == "image"]
+
+                            for att in image_attachments:
+                                try:
+                                    await self.journey_persistence_service.add_image(
+                                        journey_id=str(journey.id),
+                                        step_id=str(current_step.id),
+                                        filename=att.get("filename", "uploaded_image.jpg"),
+                                        file_path=att.get("path", ""),
+                                        url=att.get("url", ""),
+                                        content_type=att.get("content_type", "image/jpeg"),
+                                        file_size=att.get("file_size", 0),
+                                        is_generated=False,
+                                        image_type="user_upload",
+                                        label=att.get("label", "User uploaded image"),
+                                        metadata=att.get("analysis", {})
+                                    )
+                                    logger.info(f"Attached image {att.get('filename')} to journey step {current_step.step_id}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to attach image to journey step: {e}")
+
+                logger.debug(f"Tracking journey '{journey.id}' for user {user_id}")
+
+            state = self.orchestrator.mark_node_complete(state, "manage_journey")
+
+        except Exception as e:
+            state = self.orchestrator.add_error(state, e, "manage_journey", recoverable=True)
+            logger.warning(f"Journey management failed: {e}")
 
         return state
 
@@ -410,14 +694,30 @@ Return JSON:
                         "location_hint": "Canada",  # Prefer Canadian sources
                     }
 
-                    # Use existing Gemini grounding capability
-                    grounding_result = await self.gemini_client.suggest_products_with_grounding(
-                        grounding_input,
-                        max_items=5
-                    )
+                    # Check cache first
+                    cache_key = f"product_search:{hashlib.md5(user_message.encode()).hexdigest()[:16]}:{intent}"
+                    cached_result = await self.cache_service.get(cache_key, cache_type="product_search")
 
-                    web_search_results = grounding_result.get("products", [])
-                    web_sources = grounding_result.get("sources", [])
+                    if cached_result:
+                        logger.info(f"Product search cache hit for intent: {intent}")
+                        web_search_results = cached_result.get("products", [])
+                        web_sources = cached_result.get("sources", [])
+                    else:
+                        # Use existing Gemini grounding capability
+                        grounding_result = await self.gemini_client.suggest_products_with_grounding(
+                            grounding_input,
+                            max_items=5
+                        )
+
+                        web_search_results = grounding_result.get("products", [])
+                        web_sources = grounding_result.get("sources", [])
+
+                        # Cache the result
+                        await self.cache_service.set(
+                            cache_key,
+                            {"products": web_search_results, "sources": web_sources},
+                            cache_type="product_search"
+                        )
 
                     logger.info(f"Found {len(web_search_results)} products, {len(web_sources)} sources")
 
@@ -514,44 +814,56 @@ Return JSON:
 
                     search_query = f"{job_type} near Vancouver BC"
 
-                    # Use Gemini with Google Maps grounding
-                    from google import genai as google_genai
-                    from google.genai import types
+                    # Check cache first
+                    cache_key = f"contractor_search:{job_type}:vancouver"
+                    cached_contractors = await self.cache_service.get(cache_key, cache_type="contractor_search")
 
-                    # Create a separate client for Maps grounding
-                    maps_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+                    if cached_contractors:
+                        logger.info(f"Contractor search cache hit for job type: {job_type}")
+                        contractors = cached_contractors
+                    else:
+                        # Use Gemini with Google Maps grounding
+                        from google import genai as google_genai
+                        from google.genai import types
 
-                    maps_response = await maps_client.aio.models.generate_content(
-                        model='gemini-2.0-flash-exp',
-                        contents=f"Find the top 5 {job_type} in Vancouver, BC and surrounding areas (Burnaby, Richmond, Surrey). Include their ratings, specialties, and contact information.",
-                        config=types.GenerateContentConfig(
-                            tools=[types.Tool(google_maps=types.GoogleMaps())],
-                            tool_config=types.ToolConfig(
-                                retrieval_config=types.RetrievalConfig(
-                                    lat_lng=types.LatLng(
-                                        latitude=vancouver_lat,
-                                        longitude=vancouver_lng
+                        # Create a separate client for Maps grounding
+                        maps_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+                        maps_response = await maps_client.aio.models.generate_content(
+                            model='gemini-2.0-flash-exp',
+                            contents=f"Find the top 5 {job_type} in Vancouver, BC and surrounding areas (Burnaby, Richmond, Surrey). Include their ratings, specialties, and contact information.",
+                            config=types.GenerateContentConfig(
+                                tools=[types.Tool(google_maps=types.GoogleMaps())],
+                                tool_config=types.ToolConfig(
+                                    retrieval_config=types.RetrievalConfig(
+                                        lat_lng=types.LatLng(
+                                            latitude=vancouver_lat,
+                                            longitude=vancouver_lng
+                                        )
                                     )
                                 )
                             )
                         )
-                    )
 
-                    # Parse Maps grounding results
-                    contractors = []
-                    if hasattr(maps_response.candidates[0], 'grounding_metadata'):
-                        grounding = maps_response.candidates[0].grounding_metadata
-                        if grounding.grounding_chunks:
-                            for chunk in grounding.grounding_chunks[:5]:  # Top 5 contractors
-                                if hasattr(chunk, 'maps'):
-                                    contractor = {
-                                        "name": chunk.maps.title,
-                                        "place_id": chunk.maps.place_id,
-                                        "url": chunk.maps.uri,
+                        # Parse Maps grounding results
+                        contractors = []
+                        if hasattr(maps_response.candidates[0], 'grounding_metadata'):
+                            grounding = maps_response.candidates[0].grounding_metadata
+                            if grounding.grounding_chunks:
+                                for chunk in grounding.grounding_chunks[:5]:  # Top 5 contractors
+                                    if hasattr(chunk, 'maps'):
+                                        contractor = {
+                                            "name": chunk.maps.title,
+                                            "place_id": chunk.maps.place_id,
+                                            "url": chunk.maps.uri,
                                         "type": job_type,
                                         "location": "Vancouver, BC area",
                                     }
                                     contractors.append(contractor)
+
+                        # Cache the result
+                        if contractors:
+                            await self.cache_service.set(cache_key, contractors, cache_type="contractor_search")
 
                     # Store in state
                     state["response_metadata"]["contractors"] = contractors
@@ -563,8 +875,81 @@ Return JSON:
                     # Continue without contractor results
 
             # 4. Image Generation for design concepts and visual aids
-            # Note: We'll add this in a future iteration to avoid overloading the response
-            # For now, we'll focus on web search, YouTube videos, and contractor search
+            if intent in ["design_idea", "design_visualization", "before_after", "design_transformation", "material_comparison"]:
+                try:
+                    logger.info(f"Generating images for intent: {intent}")
+
+                    # Check if user uploaded an image
+                    uploaded_image = state.get("uploaded_image_path")
+
+                    if uploaded_image:
+                        # Transform existing image
+                        logger.info(f"Transforming uploaded image: {uploaded_image}")
+                        from backend.services.design_transformation_service import DesignTransformationService
+
+                        design_service = DesignTransformationService()
+                        style = self._extract_style_from_message(user_message)
+
+                        # Use transform_room_style method
+                        try:
+                            images = await design_service.transform_room_style(
+                                image=uploaded_image,
+                                target_style=style,
+                                num_variations=3
+                            )
+
+                            generated_images = [
+                                {
+                                    "type": "transformation",
+                                    "url": img_path,
+                                    "style": style,
+                                    "caption": f"{style.title()} style transformation"
+                                }
+                                for img_path in images
+                            ]
+
+                            logger.info(f"Successfully transformed image into {len(generated_images)} variations")
+                        except Exception as transform_error:
+                            logger.warning(f"Image transformation failed: {transform_error}")
+                            # Fall back to text-only response
+                    else:
+                        # Generate from description
+                        logger.info("Generating images from description")
+                        from backend.services.imagen_service import ImagenService, ImageGenerationRequest
+
+                        imagen_service = ImagenService()
+                        prompt = self._build_image_generation_prompt(user_message, ai_response)
+
+                        logger.info(f"Image generation prompt: {prompt}")
+
+                        request = ImageGenerationRequest(
+                            prompt=prompt,
+                            num_images=3,
+                            aspect_ratio="16:9"
+                        )
+
+                        result = await imagen_service.generate_images(request)
+
+                        if result.success:
+                            generated_images = [
+                                {
+                                    "type": "generated",
+                                    "url": img_path,
+                                    "caption": "AI-generated design concept",
+                                    "prompt": prompt
+                                }
+                                for img_path in result.image_paths
+                            ]
+
+                            logger.info(f"Successfully generated {len(generated_images)} images")
+                        else:
+                            logger.warning(f"Image generation failed: {result.error}")
+
+                    logger.info(f"Total generated images: {len(generated_images)}")
+
+                except Exception as e:
+                    logger.warning(f"Image generation failed: {e}", exc_info=True)
+                    # Continue without images
 
             # Store multimodal content in state
             state["web_search_results"] = web_search_results
@@ -709,6 +1094,17 @@ Return JSON:
                 })
 
 
+            # Add journey next steps as suggested actions
+            next_steps = state.get("next_steps", [])
+            if next_steps:
+                for step in next_steps:
+                    suggested_actions.append({
+                        "action": "journey_next_step",
+                        "label": f"Next: {step['name']}",
+                        "description": step['description'],
+                        "step_id": step['step_id']
+                    })
+
             # Default suggested questions for general queries
             if not suggested_questions:
                 suggested_questions.extend([
@@ -810,6 +1206,11 @@ Scenario: {scenario_label}
                 state["conversation_id"] = str(conversation.id)
                 conversation_id = str(conversation.id)
 
+            # Get journey information
+            journey_id = state.get("journey_id")
+            journey_status = state.get("journey_status")
+            current_step = state.get("current_step")
+
             # Save user message
             await self.conversation_service.add_message(
                 conversation_id=conversation_id,
@@ -820,6 +1221,9 @@ Scenario: {scenario_label}
                     **state.get("response_metadata", {}),
                     "persona": state.get("persona"),
                     "scenario": state.get("scenario"),
+                    "journey_id": journey_id,
+                    "journey_status": journey_status,
+                    "current_step": current_step,
                 },
                 context_sources=context_sources
             )
@@ -835,10 +1239,35 @@ Scenario: {scenario_label}
                         "suggested_questions": state.get("suggested_questions", []),
                         "persona": state.get("persona"),
                         "scenario": state.get("scenario"),
+                        "journey_id": journey_id,
+                        "journey_status": journey_status,
+                        "current_step": current_step,
+                        "next_steps": state.get("next_steps", []),
                         **state.get("response_metadata", {})
                     },
                     context_sources=context_sources
                 )
+
+            # Update journey's last_activity_at if journey exists
+            if journey_id:
+                try:
+                    journey = await self.journey_persistence_service.get_journey(journey_id)
+                    if journey:
+                        # Update last activity timestamp
+                        from sqlalchemy import update
+                        from backend.models.journey import Journey
+                        from datetime import datetime
+
+                        stmt = update(Journey).where(
+                            Journey.id == journey.id
+                        ).values(
+                            last_activity_at=datetime.utcnow()
+                        )
+                        await self.db.execute(stmt)
+                        await self.db.commit()
+                        logger.debug(f"Updated last_activity_at for journey {journey_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to update journey last_activity_at: {e}")
 
             logger.info(f"Saved conversation {conversation_id} to database")
             state = self.orchestrator.mark_node_complete(state, "save_conversation")
@@ -971,6 +1400,12 @@ Respond universally to all users based on their questions and needs, not their p
 Adapt your tone and detail level to match what the user is asking for, not what their persona label says.
 """)
 
+        # Add persona-specific tone/detail guidance (subtle, not restrictive)
+        if persona:
+            persona_prefix = self.persona_service.get_prompt_prefix(persona, scenario)
+            if persona_prefix:
+                prompt_parts.append(f"\n**Tone & Detail Guidance:** {persona_prefix}")
+
         # Scenario-specific guidance (only if explicitly set)
         if scenario == "contractor_quotes":
             prompt_parts.append(
@@ -980,6 +1415,42 @@ Adapt your tone and detail level to match what the user is asking for, not what 
             prompt_parts.append(
                 "\nCurrent focus: DIY Project Plan. Produce a concise, ordered plan with tools, materials, estimated effort, safety notes, and dependencies."
             )
+
+        # Add safety warnings for DIY tasks if applicable
+        if persona in ["diy_worker", "homeowner"] and scenario == "diy_project_plan":
+            # Check if message contains hazardous keywords
+            message_lower = user_message.lower()
+            safety_warnings = []
+
+            if any(word in message_lower for word in ["electrical", "wiring", "outlet", "circuit"]):
+                warning = self.persona_service.get_safety_warning("electrical")
+                if warning:
+                    safety_warnings.append(f"⚠️ {warning.title}: {warning.description}")
+
+            if any(word in message_lower for word in ["gas", "gas line"]):
+                warning = self.persona_service.get_safety_warning("gas")
+                if warning:
+                    safety_warnings.append(f"⚠️ {warning.title}: {warning.description}")
+
+            if any(word in message_lower for word in ["load bearing", "wall removal", "structural"]):
+                warning = self.persona_service.get_safety_warning("structural")
+                if warning:
+                    safety_warnings.append(f"⚠️ {warning.title}: {warning.description}")
+
+            if any(word in message_lower for word in ["roof", "roofing"]):
+                warning = self.persona_service.get_safety_warning("roof")
+                if warning:
+                    safety_warnings.append(f"⚠️ {warning.title}: {warning.description}")
+
+            if any(word in message_lower for word in ["asbestos"]):
+                warning = self.persona_service.get_safety_warning("asbestos")
+                if warning:
+                    safety_warnings.append(f"⚠️ {warning.title}: {warning.description}")
+
+            if safety_warnings:
+                prompt_parts.append("\n**SAFETY WARNINGS - Include these in your response:**")
+                for warning in safety_warnings:
+                    prompt_parts.append(warning)
 
         # Inject Skills context (concise)
         try:
@@ -1041,4 +1512,77 @@ Adapt your tone and detail level to match what the user is asking for, not what 
             if json_match:
                 return json.loads(json_match.group(0))
             raise
+
+    def _extract_style_from_message(self, message: str) -> str:
+        """Extract design style from user message."""
+        message_lower = message.lower()
+
+        styles = {
+            "modern": ["modern", "contemporary", "minimalist", "sleek", "clean"],
+            "traditional": ["traditional", "classic", "timeless", "elegant"],
+            "rustic": ["rustic", "farmhouse", "country", "cottage"],
+            "industrial": ["industrial", "loft", "urban", "warehouse"],
+            "scandinavian": ["scandinavian", "nordic", "scandi", "hygge"],
+            "bohemian": ["bohemian", "boho", "eclectic", "artistic"],
+            "coastal": ["coastal", "beach", "nautical", "seaside"],
+            "transitional": ["transitional", "blend", "mixed"]
+        }
+
+        for style, keywords in styles.items():
+            if any(keyword in message_lower for keyword in keywords):
+                return style
+
+        return "modern"  # Default
+
+    def _build_image_generation_prompt(self, user_message: str, ai_response: str) -> str:
+        """Build image generation prompt from conversation context."""
+        message_lower = user_message.lower()
+
+        # Extract room type
+        room_type = "room"
+        if "bathroom" in message_lower:
+            room_type = "bathroom"
+        elif "kitchen" in message_lower:
+            room_type = "kitchen"
+        elif "bedroom" in message_lower:
+            room_type = "bedroom"
+        elif "living" in message_lower or "living room" in message_lower:
+            room_type = "living room"
+        elif "dining" in message_lower:
+            room_type = "dining room"
+        elif "office" in message_lower:
+            room_type = "home office"
+        elif "basement" in message_lower:
+            room_type = "basement"
+
+        # Extract style
+        style = self._extract_style_from_message(user_message)
+
+        # Build detailed prompt
+        prompt = f"A beautiful {style} {room_type} interior design. "
+        prompt += "Professional interior photography, well-lit, realistic, high quality, "
+        prompt += "interior design magazine style, 8K resolution. "
+
+        # Add specific details from user message
+        if "small" in message_lower or "compact" in message_lower:
+            prompt += "Compact and space-efficient layout. "
+        if "budget" in message_lower or "affordable" in message_lower:
+            prompt += "Cost-effective materials and finishes. "
+        if "luxury" in message_lower or "high-end" in message_lower or "premium" in message_lower:
+            prompt += "Premium materials and luxury finishes. "
+        if "bright" in message_lower or "light" in message_lower:
+            prompt += "Bright and airy with natural light. "
+        if "cozy" in message_lower or "warm" in message_lower:
+            prompt += "Warm and cozy atmosphere. "
+        if "open" in message_lower or "spacious" in message_lower:
+            prompt += "Open and spacious layout. "
+
+        # Add color preferences
+        colors = ["white", "gray", "grey", "blue", "green", "beige", "black", "navy"]
+        for color in colors:
+            if color in message_lower:
+                prompt += f"Featuring {color} tones. "
+                break
+
+        return prompt
 

@@ -7,9 +7,13 @@ Official Documentation: https://developers.google.com/youtube/v3/docs/search/lis
 
 import logging
 import os
+import time
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import aiohttp
+
+from backend.services.cost_tracking_service import get_cost_tracking_service
+from backend.services.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +24,17 @@ class YouTubeSearchClient:
     def __init__(self, api_key: Optional[str] = None):
         """
         Initialize YouTube search client.
-        
+
         Args:
             api_key: YouTube Data API v3 key (defaults to YOUTUBE_API_KEY env var)
         """
         self.api_key = api_key or os.getenv("YOUTUBE_API_KEY")
         self.base_url = "https://www.googleapis.com/youtube/v3"
-        
+
+        # Initialize services
+        self.cost_service = get_cost_tracking_service()
+        self.event_bus = get_event_bus()
+
         # Trusted DIY channels (Canadian and popular)
         self.trusted_channels = [
             "Home RenoVision DIY",
@@ -48,6 +56,8 @@ class YouTubeSearchClient:
         prefer_canadian: bool = True,
         min_duration_seconds: int = 180,  # 3 minutes minimum
         max_duration_seconds: int = 1200,  # 20 minutes maximum
+        user_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for DIY tutorial videos.
@@ -65,6 +75,9 @@ class YouTubeSearchClient:
         if not self.api_key:
             logger.warning("YouTube API key not configured. Returning mock results.")
             return self._get_mock_results(query, max_results)
+
+        start_time = time.time()
+        api_calls = 0  # Track number of YouTube API calls
 
         try:
             # Build search query
@@ -88,6 +101,8 @@ class YouTubeSearchClient:
                 }
 
                 async with session.get(f"{self.base_url}/search", params=search_params) as response:
+                    api_calls += 1  # Count search API call
+
                     if response.status != 200:
                         logger.error(f"YouTube API error: {response.status}")
                         return self._get_mock_results(query, max_results)
@@ -106,6 +121,8 @@ class YouTubeSearchClient:
                 }
 
                 async with session.get(f"{self.base_url}/videos", params=details_params) as response:
+                    api_calls += 1  # Count details API call
+
                     if response.status != 200:
                         logger.error(f"YouTube API error fetching details: {response.status}")
                         return self._get_mock_results(query, max_results)
@@ -153,8 +170,23 @@ class YouTubeSearchClient:
                 
                 # Limit to max_results
                 results = results[:max_results]
-                
-                logger.info(f"Found {len(results)} YouTube tutorials for: {query}")
+
+                # Track cost for YouTube API calls
+                duration = time.time() - start_time
+                total_cost = self.cost_service.track_cost(
+                    service="youtube",
+                    operation="search",
+                    user_id=user_id,
+                    project_id=project_id,
+                    metadata={
+                        "api_calls": api_calls,
+                        "videos_found": len(results),
+                        "query": query,
+                        "duration_ms": int(duration * 1000)
+                    }
+                )
+
+                logger.info(f"Found {len(results)} YouTube tutorials for: {query} (${total_cost:.4f}, {api_calls} API calls)")
                 return results
 
         except Exception as e:

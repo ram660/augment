@@ -9,6 +9,7 @@ import logging
 from typing import TypedDict, List, Optional, Dict, Any, Annotated
 from datetime import datetime
 import operator
+import uuid
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -21,6 +22,7 @@ from backend.services.imagen_service import (
     ImageGenerationResult
 )
 from backend.integrations.gemini.client import GeminiClient
+from backend.services.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +81,14 @@ class DesignTransformationWorkflow:
         self.imagen_service = imagen_service or ImagenService()
         self.gemini_client = gemini_client or GeminiClient()
         self.checkpointer = MemorySaver()
-        
+
+        # Initialize event bus
+        self.event_bus = get_event_bus()
+
         # Build workflow graph
         self.graph = self._build_graph()
         self.app = self.graph.compile(checkpointer=self.checkpointer)
-        
+
         logger.info("Design transformation workflow initialized")
     
     def _build_graph(self) -> StateGraph:
@@ -313,11 +318,12 @@ Be concise and specific."""
         transformation_params: Dict[str, Any],
         num_variations: int = 1,
         room_id: Optional[str] = None,
-        user_preferences: Optional[Dict[str, Any]] = None
+        user_preferences: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None
     ) -> DesignTransformationState:
         """
         Execute the design transformation workflow.
-        
+
         Args:
             home_id: Home ID
             original_image_path: Path to original image
@@ -326,35 +332,119 @@ Be concise and specific."""
             num_variations: Number of variations to generate
             room_id: Optional room ID
             user_preferences: Optional user preferences
-            
+            user_id: Optional user ID for tracking
+
         Returns:
             Final workflow state
         """
-        import uuid
-        
         workflow_id = str(uuid.uuid4())
-        
-        initial_state: DesignTransformationState = {
-            "workflow_id": workflow_id,
-            "home_id": home_id,
-            "room_id": room_id,
-            "original_image_path": original_image_path,
-            "transformation_type": transformation_type,
-            "transformation_params": transformation_params,
-            "num_variations": num_variations,
-            "user_preferences": user_preferences or {},
-            "errors": [],
-            "execution_metadata": {
-                "started_at": datetime.now().isoformat()
+        start_time = datetime.utcnow()
+
+        try:
+            # Publish workflow started event
+            await self.event_bus.publish(
+                "workflow.started",
+                {
+                    "workflow_id": workflow_id,
+                    "workflow_name": "design_transformation",
+                    "home_id": home_id,
+                    "room_id": room_id,
+                    "user_id": user_id,
+                    "transformation_type": transformation_type,
+                    "num_variations": num_variations
+                },
+                source="design_transformation_workflow"
+            )
+
+            # Publish design transformation started event
+            await self.event_bus.publish(
+                "design.transformation_started",
+                {
+                    "workflow_id": workflow_id,
+                    "home_id": home_id,
+                    "room_id": room_id,
+                    "user_id": user_id,
+                    "transformation_type": transformation_type,
+                    "transformation_params": transformation_params,
+                    "num_variations": num_variations
+                },
+                source="design_transformation_workflow"
+            )
+
+            initial_state: DesignTransformationState = {
+                "workflow_id": workflow_id,
+                "home_id": home_id,
+                "room_id": room_id,
+                "original_image_path": original_image_path,
+                "transformation_type": transformation_type,
+                "transformation_params": transformation_params,
+                "num_variations": num_variations,
+                "user_preferences": user_preferences or {},
+                "errors": [],
+                "execution_metadata": {
+                    "started_at": start_time.isoformat(),
+                    "user_id": user_id
+                }
             }
-        }
-        
-        logger.info(f"Executing design transformation workflow: {workflow_id}")
-        
-        config = {"configurable": {"thread_id": workflow_id}}
-        final_state = await self.app.ainvoke(initial_state, config)
-        
-        logger.info(f"Workflow completed: {workflow_id}")
-        
-        return final_state
+
+            logger.info(f"Executing design transformation workflow: {workflow_id}")
+
+            config = {"configurable": {"thread_id": workflow_id}}
+            final_state = await self.app.ainvoke(initial_state, config)
+
+            # Publish design transformation completed event
+            duration = (datetime.utcnow() - start_time).total_seconds()
+            await self.event_bus.publish(
+                "design.transformation_completed",
+                {
+                    "workflow_id": workflow_id,
+                    "home_id": home_id,
+                    "room_id": room_id,
+                    "user_id": user_id,
+                    "transformation_type": transformation_type,
+                    "num_variations": num_variations,
+                    "images_generated": len(final_state.get("generated_images", [])),
+                    "duration_seconds": duration,
+                    "errors": final_state.get("errors", [])
+                },
+                source="design_transformation_workflow"
+            )
+
+            # Publish workflow completed event
+            await self.event_bus.publish(
+                "workflow.completed",
+                {
+                    "workflow_id": workflow_id,
+                    "workflow_name": "design_transformation",
+                    "duration_seconds": duration,
+                    "home_id": home_id,
+                    "user_id": user_id,
+                    "success": len(final_state.get("errors", [])) == 0
+                },
+                source="design_transformation_workflow"
+            )
+
+            logger.info(f"Workflow completed: {workflow_id} ({duration:.2f}s)")
+
+            return final_state
+
+        except Exception as e:
+            logger.error(f"Design transformation workflow failed: {e}", exc_info=True)
+
+            # Publish workflow failed event
+            duration = (datetime.utcnow() - start_time).total_seconds()
+            await self.event_bus.publish(
+                "workflow.failed",
+                {
+                    "workflow_id": workflow_id,
+                    "workflow_name": "design_transformation",
+                    "error": str(e),
+                    "duration_seconds": duration,
+                    "home_id": home_id,
+                    "user_id": user_id
+                },
+                source="design_transformation_workflow"
+            )
+
+            raise
 

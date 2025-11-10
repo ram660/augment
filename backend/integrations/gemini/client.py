@@ -24,6 +24,7 @@ Official Documentation (always use these for integrations):
 
 import os
 import logging
+import time
 from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 from io import BytesIO
@@ -33,6 +34,9 @@ import google.generativeai as genai
 from google.generativeai import GenerativeModel
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from PIL import Image
+
+from backend.services.cost_tracking_service import get_cost_tracking_service
+from backend.services.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 # Brand preferences and per-category constraints to guide PDP selection
@@ -108,6 +112,10 @@ class GeminiClient:
         # Initialize models
         self._init_models()
 
+        # Initialize services
+        self.cost_service = get_cost_tracking_service()
+        self.event_bus = get_event_bus()
+
         logger.info("Gemini client initialized successfully")
 
     def _init_models(self):
@@ -145,7 +153,9 @@ class GeminiClient:
         prompt: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-        system_instruction: Optional[str] = None
+        system_instruction: Optional[str] = None,
+        user_id: Optional[str] = None,
+        project_id: Optional[str] = None
     ) -> str:
         """
         Generate text using Gemini.
@@ -155,10 +165,14 @@ class GeminiClient:
             temperature: Sampling temperature (0.0 to 1.0)
             max_tokens: Maximum tokens to generate
             system_instruction: System instruction for the model
+            user_id: User ID for cost tracking
+            project_id: Project/home ID for cost tracking
 
         Returns:
             Generated text
         """
+        start_time = time.time()
+
         try:
             generation_config = {
                 "temperature": temperature or self.config.default_temperature,
@@ -178,6 +192,20 @@ class GeminiClient:
             response = model.generate_content(
                 prompt,
                 generation_config=generation_config
+            )
+
+            # Track cost (estimate tokens)
+            estimated_tokens = len(prompt.split()) * 1.3 + len(response.text.split()) * 1.3
+            self.cost_service.track_cost(
+                service="gemini",
+                operation="generate_text_flash",
+                user_id=user_id,
+                project_id=project_id,
+                metadata={
+                    "model": self.config.default_text_model,
+                    "tokens": int(estimated_tokens),
+                    "duration_ms": int((time.time() - start_time) * 1000)
+                }
             )
 
             return response.text
@@ -245,7 +273,9 @@ class GeminiClient:
         self,
         image: Union[str, Path, Image.Image, bytes],
         prompt: str,
-        temperature: Optional[float] = None
+        temperature: Optional[float] = None,
+        user_id: Optional[str] = None,
+        project_id: Optional[str] = None
     ) -> str:
         """
         Analyze an image with Gemini Vision.
@@ -254,10 +284,14 @@ class GeminiClient:
             image: Image as file path, PIL Image, or bytes
             prompt: Analysis prompt
             temperature: Sampling temperature
+            user_id: User ID for cost tracking
+            project_id: Project/home ID for cost tracking
 
         Returns:
             Analysis result as text
         """
+        start_time = time.time()
+
         try:
             # Load image
             pil_image = self._load_image(image)
@@ -269,6 +303,18 @@ class GeminiClient:
             response = self.vision_model.generate_content(
                 [prompt, pil_image],
                 generation_config=generation_config
+            )
+
+            # Track cost (per image)
+            self.cost_service.track_cost(
+                service="gemini",
+                operation="analyze_image",
+                user_id=user_id,
+                project_id=project_id,
+                metadata={
+                    "model": self.config.default_vision_model,
+                    "duration_ms": int((time.time() - start_time) * 1000)
+                }
             )
 
             return response.text
@@ -317,6 +363,8 @@ class GeminiClient:
         self,
         summary_or_grounding: Dict[str, Any],
         max_items: int = 5,
+        user_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Suggest products with Google Search grounding enabled.
@@ -332,6 +380,9 @@ class GeminiClient:
         Uses Gemini text model with tools=[{"google_search": {}}] per official docs:
         https://ai.google.dev/gemini-api/docs/google-search
         """
+        start_time = time.time()
+        search_count = 0  # Track number of Google Search calls
+
         try:
             # Build targeted prompt with strong shopping guidance and context.
             payload = summary_or_grounding or {}
@@ -468,6 +519,9 @@ class GeminiClient:
             import json, re
 
             def _run_and_parse(contents_text: str) -> Dict[str, Any]:
+                nonlocal search_count
+                search_count += 1  # Count each search call
+
                 resp_local = client.models.generate_content(
                     model=self.config.default_text_model,
                     contents=contents_text,
@@ -574,6 +628,23 @@ class GeminiClient:
                         )
             except Exception:
                 pass
+
+            # Track cost for Google Search grounding calls
+            duration = time.time() - start_time
+            total_cost = self.cost_service.track_cost(
+                service="google_search",
+                operation="grounding",
+                user_id=user_id,
+                project_id=project_id,
+                metadata={
+                    "search_count": search_count,
+                    "products_found": len(parsed.get("products", [])) if isinstance(parsed, dict) else 0,
+                    "sources_found": len(parsed.get("sources", [])) if isinstance(parsed, dict) else 0,
+                    "duration_ms": int(duration * 1000)
+                }
+            )
+
+            logger.info(f"Google Search grounding: {search_count} calls, ${total_cost:.4f}, {duration:.2f}s")
 
             return parsed if isinstance(parsed, dict) else {"products": [], "sources": []}
         except Exception as e:
@@ -975,16 +1046,25 @@ Only modify the specific elements mentioned in the transformation request."""
             logger.error(f"Error generating image with Imagen: {str(e)}", exc_info=True)
             raise
 
-    async def get_embeddings(self, texts: Union[str, List[str]]) -> List[List[float]]:
+    async def get_embeddings(
+        self,
+        texts: Union[str, List[str]],
+        user_id: Optional[str] = None,
+        project_id: Optional[str] = None
+    ) -> List[List[float]]:
         """
         Generate embeddings for text(s).
 
         Args:
             texts: Single text or list of texts
+            user_id: User ID for cost tracking
+            project_id: Project/home ID for cost tracking
 
         Returns:
             List of embedding vectors
         """
+        start_time = time.time()
+
         try:
             if isinstance(texts, str):
                 texts = [texts]
@@ -997,6 +1077,21 @@ Only modify the specific elements mentioned in the transformation request."""
                     task_type="retrieval_document"
                 )
                 embeddings.append(result['embedding'])
+
+            # Track cost (estimate tokens)
+            total_tokens = sum(len(text.split()) * 1.3 for text in texts)
+            self.cost_service.track_cost(
+                service="gemini",
+                operation="embed",
+                user_id=user_id,
+                project_id=project_id,
+                metadata={
+                    "model": self.config.default_embedding_model,
+                    "tokens": int(total_tokens),
+                    "count": len(texts),
+                    "duration_ms": int((time.time() - start_time) * 1000)
+                }
+            )
 
             return embeddings
 

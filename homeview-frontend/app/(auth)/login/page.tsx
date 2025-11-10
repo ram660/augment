@@ -13,8 +13,8 @@ import { useAuthStore } from '@/lib/stores/authStore';
 
 export default function LoginPage() {
   const router = useRouter();
-  const setUser = useAuthStore((state) => state.setUser);
-  
+  const setAuth = useAuthStore((state) => state.setAuth);
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -29,7 +29,7 @@ export default function LoginPage() {
 
     try {
       const response = await authAPI.login(formData);
-      setUser(response.user);
+      setAuth(response.user, response.access_token, response.refresh_token);
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);

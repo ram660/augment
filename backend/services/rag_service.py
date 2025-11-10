@@ -28,6 +28,7 @@ from backend.models import (
 from backend.models.base import USE_SQLITE
 from backend.models.knowledge import PgVector
 from backend.integrations.gemini.client import GeminiClient
+from backend.services.cache_service import get_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,10 @@ class RAGService:
         self.dim = 768  # Gemini text-embedding-004 dimension
         self.use_gemini = use_gemini
 
-        # Query cache (simple in-memory cache)
+        # Use centralized cache service
+        self.cache_service = get_cache_service()
+
+        # Legacy in-memory cache (kept for backward compatibility)
         self._query_cache: Dict[str, Tuple[datetime, Dict[str, Any]]] = {}
         self._cache_ttl_seconds = 300  # 5 minutes
 
@@ -428,6 +432,13 @@ class RAGService:
 
     async def query(self, db: AsyncSession, query: str, home_id: Optional[str] = None, room_id: Optional[str] = None, floor_level: Optional[int] = None, k: int = 8) -> Dict[str, Any]:
         """Simple cosine similarity over stored embeddings with filters."""
+        # Check cache first
+        cache_key = f"rag_query:{query}:{home_id}:{room_id}:{floor_level}:{k}"
+        cached_result = await self.cache_service.get(cache_key, cache_type="rag_query")
+        if cached_result:
+            logger.debug(f"RAG cache hit for query: {query[:50]}...")
+            return cached_result
+
         q_emb = select(Embedding).join(KnowledgeChunk).join(KnowledgeDocument)
         if home_id:
             q_emb = q_emb.where(KnowledgeDocument.home_id == home_id)
@@ -436,7 +447,10 @@ class RAGService:
         # floor_level lives in metadata of document
         results = (await db.execute(q_emb)).scalars().all()
         if not results:
-            return {"matches": []}
+            empty_result = {"matches": []}
+            # Cache empty results too (shorter TTL)
+            await self.cache_service.set(cache_key, empty_result, cache_type="rag_query", ttl=60)
+            return empty_result
 
         # If pgvector is available and DB is Postgres, do in-DB cosine distance ordering
         if not USE_SQLITE and PgVector is not None:
@@ -584,7 +598,11 @@ class RAGService:
                 out.append(obj)
 
             out.sort(key=lambda x: x["score"], reverse=True)
-            return {"matches": out[:k]}
+            result = {"matches": out[:k]}
+
+            # Cache the result
+            await self.cache_service.set(cache_key, result, cache_type="rag_query")
+            return result
 
         # Fallback: in-Python cosine
         q_vec = await self._embed(query)
@@ -628,7 +646,11 @@ class RAGService:
             if len(payload) >= k:
                 break
 
-        return {"matches": payload}
+        result = {"matches": payload}
+
+        # Cache the result
+        await self.cache_service.set(cache_key, result, cache_type="rag_query")
+        return result
 
     async def assemble_context(
         self,

@@ -10,7 +10,7 @@ import os
 from backend.database import get_async_db
 from backend.models.user import User
 from backend.models.message_feedback import MessageFeedback
-from backend.api.auth import get_current_user_optional
+from backend.api.auth import get_current_user, get_current_user_optional
 from backend.integrations.agentlightning.store import get_lightning_store
 from backend.integrations.agentlightning.tracker import AgentTracker
 
@@ -36,6 +36,28 @@ async def require_admin_optional(current_user: Optional[User] = Depends(get_curr
         #     raise HTTPException(status_code=403, detail="Admin privileges required")
 
     # In development, allow access without authentication
+    return current_user
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Require admin privileges.
+
+    In production this enforces that a valid authenticated user is present.
+    In development it still requires a user but is less strict about roles (TODO: add role checks).
+    """
+    environment = os.getenv("ENVIRONMENT", "development")
+
+    if not current_user:
+        # No authenticated user provided
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if environment == "production":
+        # TODO: enforce a proper admin role check when roles are implemented on User
+        # if not getattr(current_user, "is_admin", False):
+        #     raise HTTPException(status_code=403, detail="Admin privileges required")
+        pass
+
     return current_user
 
 

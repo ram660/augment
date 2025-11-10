@@ -82,13 +82,17 @@ class FloorPlanAnalysisAgent(BaseAgent):
             # Parse the AI response
             parsed_data = self._parse_analysis_response(analysis_result, analysis_depth)
 
-            # Add metadata
+            # Add metadata (include provider/cost/confidence if available)
+            vs_meta = self.vision.last_metadata or {}
             parsed_data["metadata"] = {
                 "scale": scale,
                 "floor_level": floor_level,
                 "analysis_depth": analysis_depth,
-                "model_used": "gemini-2.5-flash",
+                "model_provider": vs_meta.get("provider", "gemini"),
+                "model_used": "deepseek-vl2" if (vs_meta.get("provider") == "deepseek") else "gemini-2.5-flash",
+                "model_processing_time_ms": vs_meta.get("processing_time_ms", processing_time),
                 "processing_time_ms": processing_time,
+                "fallback_reason": vs_meta.get("fallback_reason"),
                 "analyzed_at": datetime.utcnow().isoformat()
             }
 

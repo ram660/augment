@@ -10,13 +10,14 @@ from uuid import UUID, uuid4
 from datetime import datetime
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
+from pathlib import Path
 
 from backend.api.auth import get_current_user, get_current_user_optional
-from backend.models.user import User
+from backend.models.user import User, UserType
 from backend.models.conversation import Conversation, ConversationMessage
 from backend.models.message_feedback import MessageFeedback
 from backend.models.base import get_async_db
@@ -37,6 +38,43 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
 
+async def get_or_create_default_user(db: AsyncSession, current_user: Optional[User]) -> User:
+    """
+    Get or create a default test user for development when no user is authenticated.
+
+    Args:
+        db: Database session
+        current_user: Current authenticated user (may be None)
+
+    Returns:
+        User object (either the authenticated user or default test user)
+    """
+    if current_user:
+        return current_user
+
+    # For development: use a default user if not authenticated
+    from uuid import UUID
+    default_user_id = UUID("550e8400-e29b-41d4-a716-446655440000")
+    test_user = await db.get(User, default_user_id)
+
+    if not test_user:
+        # Create a default test user
+        test_user = User(
+            id=default_user_id,
+            email="test@homeview.ai",
+            full_name="Test User",
+            password_hash="",  # No password for test user
+            is_active=True,
+            user_type=UserType.HOMEOWNER
+        )
+        db.add(test_user)
+        await db.commit()
+        await db.refresh(test_user)
+        logger.info("Created default test user for development")
+
+    return test_user
+
+
 class ChatMessageRequest(BaseModel):
     """Chat message request."""
     message: str = Field(..., min_length=1, max_length=5000)
@@ -55,6 +93,12 @@ class ChatMessageResponse(BaseModel):
     response: str
     intent: str
     suggested_actions: List[dict] = []
+
+    # Visual content
+    generated_images: List[dict] = []  # Generated/transformed images
+    youtube_videos: List[dict] = []    # Tutorial videos
+    web_sources: List[dict] = []       # Product links
+
     metadata: dict = {}
 
 
@@ -933,22 +977,47 @@ async def execute_action(
 
 @router.post("/message", response_model=ChatMessageResponse)
 async def send_message(
-    request: ChatMessageRequest,
-    current_user: User = Depends(get_current_user),
+    message: str = Form(...),
+    conversation_id: Optional[str] = Form(None),
+    home_id: Optional[str] = Form(None),
+    persona: Optional[str] = Form(None),
+    scenario: Optional[str] = Form(None),
+    mode: Optional[str] = Form('agent'),
+    image: Optional[UploadFile] = File(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_async_db)
 ):
     """
     Send a chat message and get AI response.
 
     Args:
-        request: Chat message request
-        current_user: Current authenticated user
+        message: The chat message text
+        conversation_id: Optional conversation ID
+        home_id: Optional home ID
+        persona: Optional persona (homeowner, diy_worker, contractor)
+        scenario: Optional scenario (contractor_quotes, diy_project_plan)
+        mode: Chat mode (chat or agent)
+        image: Optional image file upload for design transformations
+        current_user: Current authenticated user (optional for development)
         db: Database session
 
     Returns:
         AI response with conversation context
     """
     try:
+        # Create request object from form fields
+        request = ChatMessageRequest(
+            message=message,
+            conversation_id=conversation_id,
+            home_id=home_id,
+            persona=persona,
+            scenario=scenario,
+            mode=mode
+        )
+
+        # Get or create default user for development
+        current_user = await get_or_create_default_user(db, current_user)
+
         # Initialize services
         conversation_service = ConversationService(db)
         chat_workflow = ChatWorkflow(db)
@@ -1003,6 +1072,30 @@ async def send_message(
                 # Non-fatal; continue without persisting
                 await db.rollback()
 
+        # Handle image upload if provided
+        uploaded_image_path = None
+        if image:
+            try:
+                # Create upload directory for this conversation
+                upload_dir = Path("uploads/chat") / str(conversation.id)
+                upload_dir.mkdir(parents=True, exist_ok=True)
+
+                # Generate unique filename
+                file_extension = Path(image.filename).suffix if image.filename else ".jpg"
+                image_filename = f"{uuid4()}{file_extension}"
+                image_path = upload_dir / image_filename
+
+                # Save image
+                with open(image_path, "wb") as f:
+                    content = await image.read()
+                    f.write(content)
+
+                uploaded_image_path = str(image_path)
+                logger.info(f"Saved uploaded image to {uploaded_image_path}")
+            except Exception as e:
+                logger.error(f"Failed to save uploaded image: {e}")
+                # Continue without image
+
         # Execute chat workflow
         workflow_input = {
             "user_message": request.message,
@@ -1013,6 +1106,7 @@ async def send_message(
             "persona": request.persona,
             "scenario": request.scenario,
             "mode": request.mode or "agent",  # Pass chat/agent mode
+            "uploaded_image_path": uploaded_image_path,  # Add uploaded image path
         }
 
         result = await chat_workflow.execute(workflow_input)
@@ -1082,6 +1176,9 @@ async def send_message(
             response=ai_response,
             intent=result.get("intent", "unknown"),
             suggested_actions=result.get("suggested_actions", []),
+            generated_images=result.get("generated_images", []),
+            youtube_videos=result.get("youtube_videos", []),
+            web_sources=result.get("web_sources", []),
             metadata=result.get("response_metadata", {})
         )
 
@@ -1478,7 +1575,7 @@ async def list_conversations(
     home_id: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_async_db)
 ):
     """
@@ -1488,13 +1585,16 @@ async def list_conversations(
         home_id: Optional filter by home ID
         limit: Maximum number of conversations to return
         offset: Offset for pagination
-        current_user: Current authenticated user
+        current_user: Current authenticated user (optional for development)
         db: Database session
 
     Returns:
         List of conversations
     """
     try:
+        # Get or create default user for development
+        current_user = await get_or_create_default_user(db, current_user)
+
         conversation_service = ConversationService(db)
 
         conversations = await conversation_service.list_conversations(
@@ -1580,7 +1680,7 @@ async def get_conversation_history(
     conversation_id: str,
     limit: int = 50,
     offset: int = 0,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_async_db)
 ):
     """
@@ -1590,13 +1690,16 @@ async def get_conversation_history(
         conversation_id: Conversation ID
         limit: Maximum number of messages to return
         offset: Offset for pagination
-        current_user: Current authenticated user
+        current_user: Current authenticated user (optional for development)
         db: Database session
 
     Returns:
         Conversation history with messages
     """
     try:
+        # Get or create default user for development
+        current_user = await get_or_create_default_user(db, current_user)
+
         conversation_service = ConversationService(db)
 
         # Get conversation
@@ -1656,13 +1759,16 @@ async def get_conversation_messages(
 
     Args:
         conversation_id: Conversation ID
-        current_user: Current authenticated user
+        current_user: Current authenticated user (optional for development)
         db: Database session
 
     Returns:
         List of messages in the conversation
     """
     try:
+        # Get or create default user for development
+        current_user = await get_or_create_default_user(db, current_user)
+
         conversation_service = ConversationService(db)
 
         # Get conversation
@@ -1750,6 +1856,74 @@ async def delete_conversation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete conversation"
+        )
+
+
+@router.get("/messages")
+async def get_messages_by_query(
+    conversation_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_async_db)
+):
+    """
+    Get all messages for a conversation using query parameter.
+    This endpoint provides an alternative to /conversations/{conversation_id}/messages
+    for frontend compatibility.
+
+    Args:
+        conversation_id: Conversation ID (query parameter)
+        current_user: Current authenticated user (optional for development)
+        db: Database session
+
+    Returns:
+        List of messages in the conversation
+    """
+    try:
+        # Get or create default user for development
+        current_user = await get_or_create_default_user(db, current_user)
+
+        conversation_service = ConversationService(db)
+
+        # Get conversation
+        conversation = await conversation_service.get_conversation(conversation_id)
+
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found"
+            )
+
+        # Ownership: if conversation is tied to a user, require that user; anonymous conversations are open
+        if conversation.user_id:
+            if not current_user or conversation.user_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied to this conversation"
+                )
+
+        # Get messages
+        messages = await conversation_service.get_messages(conversation_id)
+
+        # Return plain list of messages to match frontend typings
+        return [
+            {
+                "id": str(msg.id),
+                "conversation_id": conversation_id,
+                "role": msg.role,
+                "content": msg.content,
+                "metadata": msg.message_metadata or {},
+                "created_at": msg.created_at.isoformat() if msg.created_at else None,
+            }
+            for msg in messages
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get messages by query error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get messages"
         )
 
 

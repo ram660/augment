@@ -16,6 +16,8 @@ from backend.api.chat import router as chat_router
 from backend.api.product import router as product_router
 from backend.api.documents import router as documents_router
 from backend.api.admin import router as admin_router
+from backend.api.monitoring import router as monitoring_router
+from backend.api.journey import router as journey_router
 from backend.models.base import init_db_async
 from backend.middleware import RateLimitMiddleware, MonitoringMiddleware
 from backend.services.monitoring_service import get_monitoring_service
@@ -139,6 +141,10 @@ An AI-powered SaaS platform for homeowners, DIY workers, and contractors featuri
         {
             "name": "health",
             "description": "System health and monitoring endpoints."
+        },
+        {
+            "name": "journey",
+            "description": "Journey management for tracking user progress through home improvement projects."
         }
     ],
     docs_url="/docs",
@@ -170,6 +176,8 @@ app.include_router(intelligence_router)
 app.include_router(design_router)
 app.include_router(documents_router)
 app.include_router(admin_router)
+app.include_router(monitoring_router)  # NEW: Monitoring and health checks
+app.include_router(journey_router)  # NEW: Journey management
 
 # Mount static files for frontend
 frontend_path = Path(__file__).parent.parent / "frontend"

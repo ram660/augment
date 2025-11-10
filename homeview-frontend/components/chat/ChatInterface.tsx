@@ -272,23 +272,6 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
         placeholder="Ask me anything..."
       />
 
-      {/* Persona-specific Prompt Chips (below input) */}
-      <div className="bg-white px-4 pb-4">
-        <div className="max-w-4xl mx-auto flex flex-wrap gap-2">
-          {suggestedPrompts.slice(0, 6).map((prompt, idx) => (
-            <button
-              key={idx}
-              onClick={() => send(prompt)}
-              disabled={isStreaming}
-              className="px-3 py-1.5 rounded-full text-xs border border-gray-300 text-gray-700 hover:border-primary hover:text-primary transition-colors"
-              title={prompt}
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
-      </div>
-
     </div>
   );
 }
