@@ -13,18 +13,27 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database URLs
-# Use SQLite for development if PostgreSQL is not available
-USE_SQLITE = os.getenv("USE_SQLITE", "true").lower() == "true"
+# Railway provides DATABASE_URL automatically for PostgreSQL
+# Use SQLite for local development if DATABASE_URL is not set
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# JSON type helper - use JSON for SQLite, JSONB for PostgreSQL
-JSONType = JSON if USE_SQLITE else JSONB
+if DATABASE_URL:
+    # Production: Use PostgreSQL (Railway provides this)
+    USE_SQLITE = False
+    JSONType = JSONB
 
-if USE_SQLITE:
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./homevision.db")
-    DATABASE_URL_ASYNC = os.getenv("DATABASE_URL_ASYNC", "sqlite+aiosqlite:///./homevision.db")
+    # Railway provides postgres:// but SQLAlchemy needs postgresql://
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+    # Create async URL by replacing postgresql:// with postgresql+asyncpg://
+    DATABASE_URL_ASYNC = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 else:
-    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://homevision:password@localhost:5432/homevision_db")
-    DATABASE_URL_ASYNC = os.getenv("DATABASE_URL_ASYNC", "postgresql+asyncpg://homevision:password@localhost:5432/homevision_db")
+    # Development: Use SQLite
+    USE_SQLITE = True
+    JSONType = JSON
+    DATABASE_URL = "sqlite:///./homevision.db"
+    DATABASE_URL_ASYNC = "sqlite+aiosqlite:///./homevision.db"
 
 # Create engines
 if USE_SQLITE:

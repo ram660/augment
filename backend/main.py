@@ -1,5 +1,6 @@
 """Main FastAPI application for HomeVision AI."""
 
+import os
 import logging
 from contextlib import asynccontextmanager
 
@@ -153,9 +154,12 @@ An AI-powered SaaS platform for homeowners, DIY workers, and contractors featuri
 )
 
 # Configure CORS
+# Get allowed origins from environment variable or use defaults
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=CORS_ORIGINS,  # Configured via environment variable
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
