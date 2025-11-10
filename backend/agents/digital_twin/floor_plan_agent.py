@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from backend.agents.base import BaseAgent, AgentConfig, AgentRole, AgentResponse
-from backend.integrations.gemini import GeminiClient
+from backend.services.vision_service import UnifiedVisionService
 from backend.utils.floor_type_normalizer import normalize_floor_type, floor_level_from_type
 from backend.utils.room_type_normalizer import normalize_room_type
 
@@ -33,7 +33,7 @@ class FloorPlanAnalysisAgent(BaseAgent):
             enable_memory=False  # Floor plan analysis is stateless
         )
         super().__init__(config)
-        self.gemini_client = GeminiClient()
+        self.vision = UnifiedVisionService()
 
     async def process(self, input_data: Dict[str, Any]) -> AgentResponse:
         """
@@ -71,7 +71,7 @@ class FloorPlanAnalysisAgent(BaseAgent):
             logger.info(f"Analyzing floor plan: {image_path}")
             start_time = datetime.utcnow()
 
-            analysis_result = await self.gemini_client.analyze_image(
+            analysis_result = await self.vision.analyze_floor_plan(
                 image=image_path,
                 prompt=prompt,
                 temperature=0.3

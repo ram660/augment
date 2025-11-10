@@ -824,6 +824,65 @@ class GeminiClient:
             logger.error(f"Error in generate_transformation_ideas: {e}", exc_info=True)
             return {"color": [], "flooring": [], "lighting": [], "decor": [], "other": []}
 
+    async def generate_style_transformations(
+        self,
+        summary: Dict[str, Any],
+        room_hint: Optional[str] = None,
+        max_items: int = 4,
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate 3-5 high-level style transformation presets for the room.
+
+        Follows official Gemini text generation guidance (google.generativeai) and returns ONLY JSON:
+        { "items": [ { "label": str, "prompt": str } ] }
+        The prompt should be a complete, safe Imagen editing instruction that:
+        - Preserves layout, walls, windows, doors, and lighting
+        - Only modifies style, finishes, colors, and decor as implied by the label
+        - Uses clear, concise sentences (<= 80 words)
+        """
+        try:
+            count = max(1, min(int(max_items or 4), 6))
+            prompt = (
+                "You are an interior design AI. Based on the structured room summary, propose "
+                f"{count} distinct STYLE TRANSFORMATION presets appropriate for the space. "
+                "Return ONLY JSON in the schema {\"items\":[{\"label\":str,\"prompt\":str}]}. "
+                "The prompt should be a full image-edit instruction for Gemini Imagen that preserves the scene except for style changes.\n\n"
+                f"Room type (hint): {room_hint or 'unknown'}\n"
+                f"Summary JSON:\n{summary}\n\n"
+                "Rules for prompt content:\n"
+                "- Preserve layout, structure, and lighting; no structural changes.\n"
+                "- Only adjust style, finishes, furniture/decor, and color palettes.\n"
+                "- Keep unchanged elements identical unless the label explicitly implies a swap.\n"
+                "- Maintain photorealism and correct perspective.\n"
+            )
+            resp = self.text_model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.5}
+            )
+            text = getattr(resp, "text", "") or "{}"
+
+            import json, re
+            match = re.search(r"\{[\s\S]*\}", text)
+            payload = json.loads(match.group(0)) if match else {}
+            items = payload.get("items") if isinstance(payload, dict) else None
+            if not isinstance(items, list):
+                return []
+            out: List[Dict[str, Any]] = []
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                label = (it.get("label") or "").strip()
+                pr = (it.get("prompt") or "").strip()
+                if label and pr:
+                    out.append({"label": label, "prompt": pr})
+                if len(out) >= count:
+                    break
+            return out
+        except Exception as e:
+            logger.error(f"Error in generate_style_transformations: {e}", exc_info=True)
+            return []
+
+
 
     async def generate_image(
         self,

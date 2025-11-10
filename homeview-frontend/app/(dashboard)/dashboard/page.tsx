@@ -33,6 +33,14 @@ const quickActions = [
     bgColor: 'bg-purple-100',
   },
   {
+    title: 'Documents',
+    description: 'Analyze quotes, datasheets, inspections',
+    icon: FolderKanban,
+    href: '/dashboard/documents',
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-100',
+  },
+  {
     title: 'Projects',
     description: 'Manage your home projects',
     icon: FolderKanban,

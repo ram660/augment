@@ -31,6 +31,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 
 # Security
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 # Auth service instance
 auth_service = AuthService()
@@ -42,27 +43,27 @@ async def get_current_user(
 ) -> User:
     """
     Dependency to get current authenticated user.
-    
+
     Args:
         credentials: HTTP bearer token
         db: Database session
-        
+
     Returns:
         Current user
-        
+
     Raises:
         HTTPException: If token is invalid or user not found
     """
     token = credentials.credentials
     token_data = auth_service.verify_token(token)
-    
+
     if not token_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Get user from database
     from uuid import UUID
     user_id = UUID(token_data.user_id) if isinstance(token_data.user_id, str) else token_data.user_id
@@ -73,14 +74,38 @@ async def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive"
         )
-    
+
     return user
+
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+    db: AsyncSession = Depends(get_async_db)
+) -> Optional[User]:
+    """
+    Optional user dependency. Returns None if no/invalid token.
+    """
+    try:
+        if not credentials:
+            return None
+        token = credentials.credentials
+        token_data = auth_service.verify_token(token)
+        if not token_data:
+            return None
+        from uuid import UUID
+        user_id = UUID(token_data.user_id) if isinstance(token_data.user_id, str) else token_data.user_id
+        user = await db.get(User, user_id)
+        if not user or not user.is_active:
+            return None
+        return user
+    except Exception:
+        return None
 
 
 async def get_current_active_user(

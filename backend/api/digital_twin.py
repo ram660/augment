@@ -7,13 +7,15 @@ import uuid as uuid_lib
 import os
 from pathlib import Path
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from backend.models.base import get_async_db
-from backend.models import Home, Room, User, UserType, HomeType
+from backend.models import Home, Room, RoomImage, User, UserType, HomeType
 from backend.services import DigitalTwinService
 from backend.services.rag_service import RAGService
 from backend.utils.room_type_normalizer import get_unknown_room_types, add_room_type_synonym
@@ -317,6 +319,118 @@ async def rag_query(req: RAGQueryRequest, db: AsyncSession = Depends(get_async_d
         return res
     except Exception as e:
         logger.error(f"RAG query failed: {e}", exc_info=True)
+
+# ==============================
+# Studio Canvas state (DB-backed)
+# ==============================
+class CanvasNode(BaseModel):
+    id: str
+    type: str
+    position: dict
+    data: dict = {}
+    parentNode: Optional[str] = None
+
+class CanvasEdge(BaseModel):
+    id: Optional[str] = None
+    source: str
+    target: str
+    type: Optional[str] = None
+
+class StudioCanvasState(BaseModel):
+    nodes: List[CanvasNode] = []
+    edges: List[CanvasEdge] = []
+    viewport: Optional[dict] = None
+    saved_at: Optional[str] = None
+
+class LinkImageRequest(BaseModel):
+    room_id: UUID = Field(..., description="Target room to link this image to")
+
+
+@router.get("/homes/{home_id}/studio/canvas", response_model=dict)
+async def get_studio_canvas_state(home_id: UUID, db: AsyncSession = Depends(get_async_db)):
+    """Return saved ReactFlow canvas state for the given home (nodes/edges/viewport).
+    Stored under Home.extra_data['studio_canvas'] to avoid schema changes.
+    """
+    try:
+        from sqlalchemy import select
+        res = await db.execute(select(Home).where(Home.id == home_id))
+        home: Home = res.scalar_one_or_none()
+        if not home:
+            raise HTTPException(status_code=404, detail=f"Home {home_id} not found")
+        extra = home.extra_data or {}
+        canvas = extra.get("studio_canvas") or {}
+        return canvas or {"nodes": [], "edges": [], "viewport": None, "saved_at": None}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_studio_canvas_state failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/homes/{home_id}/studio/canvas", response_model=dict)
+async def save_studio_canvas_state(
+    home_id: UUID,
+    state: StudioCanvasState,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Persist ReactFlow canvas nodes/edges to Home.extra_data['studio_canvas']."""
+    try:
+        from sqlalchemy import select
+        res = await db.execute(select(Home).where(Home.id == home_id))
+        home: Home = res.scalar_one_or_none()
+        if not home:
+            raise HTTPException(status_code=404, detail=f"Home {home_id} not found")
+        extra = dict(home.extra_data or {})
+        saved = state.model_dump()
+        saved["saved_at"] = datetime.now(timezone.utc).isoformat()
+        extra["studio_canvas"] = saved
+        home.extra_data = extra
+        await db.commit()
+        return saved
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"save_studio_canvas_state failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/images/{image_id}/link", response_model=dict)
+async def link_image_to_room(
+    image_id: UUID,
+    req: LinkImageRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Relink an existing RoomImage to a different Room within the same Home."""
+    try:
+        from sqlalchemy import select
+        # Load image and its current room/home
+        img_res = await db.execute(select(RoomImage).where(RoomImage.id == image_id))
+        image: RoomImage = img_res.scalar_one_or_none()
+        if not image:
+            raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
+        curr_room_res = await db.execute(select(Room).where(Room.id == image.room_id))
+        curr_room: Room = curr_room_res.scalar_one_or_none()
+        if not curr_room:
+            raise HTTPException(status_code=404, detail="Current room for image not found")
+        # Load target room
+        tgt_res = await db.execute(select(Room).where(Room.id == req.room_id))
+        target_room: Room = tgt_res.scalar_one_or_none()
+        if not target_room:
+            raise HTTPException(status_code=404, detail=f"Room {req.room_id} not found")
+        if curr_room.home_id != target_room.home_id:
+            raise HTTPException(status_code=400, detail="Target room must belong to the same home as the image")
+        image.room_id = target_room.id
+        await db.commit()
+        return {
+            "success": True,
+            "image_id": str(image.id),
+            "room_id": str(target_room.id),
+            "room_name": target_room.name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"link_image_to_room failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -326,11 +440,11 @@ async def save_upload_file(upload_file: UploadFile, destination: Path) -> str:
     """Save uploaded file to destination."""
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(destination, "wb") as buffer:
             content = await upload_file.read()
             buffer.write(content)
-        
+
         return str(destination)
     except Exception as e:
         logger.error(f"Error saving file: {str(e)}")
@@ -800,7 +914,7 @@ async def export_home_csv(
                     "confidence_score": fpa.confidence_score,
                     "analysis_notes": fpa.analysis_notes,
                 })
-        
+
         # Optional: RoomAnalyses and SpatialData if present for these rooms
         if room_ids:
             try:
@@ -881,7 +995,7 @@ async def create_home(
 ):
     """
     Create a new home.
-    
+
     This endpoint creates a new home record in the database.
     """
     try:
@@ -889,7 +1003,7 @@ async def create_home(
         from sqlalchemy import select
         result = await db.execute(select(User).where(User.email == request.owner_email))
         user = result.scalar_one_or_none()
-        
+
         if not user:
             # Create new user
             user = User(
@@ -899,7 +1013,7 @@ async def create_home(
             )
             db.add(user)
             await db.flush()
-        
+
         # Create home
         home = Home(
             owner_id=user.id,
@@ -915,9 +1029,9 @@ async def create_home(
         db.add(home)
         await db.commit()
         await db.refresh(home)
-        
+
         logger.info(f"Created home {home.id} for user {user.email}")
-        
+
         return HomeResponse(
             id=str(home.id),
             name=home.name,
@@ -927,7 +1041,7 @@ async def create_home(
             total_rooms=0,
             total_images=0
         )
-    
+
     except Exception as e:
         await db.rollback()
         logger.error(f"Error creating home: {str(e)}", exc_info=True)
@@ -945,7 +1059,7 @@ async def upload_floor_plan(
 ):
     """
     Upload and analyze a floor plan.
-    
+
     This endpoint:
     1. Saves the uploaded floor plan image
     2. Runs AI analysis to extract room layouts
@@ -956,15 +1070,15 @@ async def upload_floor_plan(
         # Validate file type
         if not file.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="File must be an image")
-        
+
         # Save uploaded file
         upload_dir = Path("uploads/floor_plans")
         file_extension = Path(file.filename).suffix
         file_path = upload_dir / f"{home_id}_{floor_level}{file_extension}"
-        
+
         saved_path = await save_upload_file(file, file_path)
         logger.info(f"Saved floor plan to {saved_path}")
-        
+
         # Run analysis
         service = DigitalTwinService()
         result = await service.analyze_and_save_floor_plan(
@@ -975,9 +1089,9 @@ async def upload_floor_plan(
             scale=scale,
             name=name or f"Floor {floor_level}"
         )
-        
+
         logger.info(f"Floor plan analysis complete: {result['rooms_created']} rooms created")
-        
+
         analysis = result.get("analysis", {})
         units = analysis.get("units", {}) if isinstance(analysis, dict) else {}
         # Prefer explicit floor_plan_id; otherwise, take the first from floor_plan_ids
@@ -998,7 +1112,7 @@ async def upload_floor_plan(
             floor_level_name=analysis.get("floor_level_name"),
             scale_text=units.get("scale_text")
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1017,7 +1131,7 @@ async def upload_room_image(
 ):
     """
     Upload and analyze a room image.
-    
+
     This endpoint:
     1. Saves the uploaded room image
     2. Runs AI analysis to extract materials, fixtures, products
@@ -1028,22 +1142,22 @@ async def upload_room_image(
         # Validate file type
         if not file.content_type.startswith("image/"):
             raise HTTPException(status_code=400, detail="File must be an image")
-        
+
         # Verify room exists
         from sqlalchemy import select
         result = await db.execute(select(Room).where(Room.id == room_id))
         room = result.scalar_one_or_none()
         if not room:
             raise HTTPException(status_code=404, detail=f"Room {room_id} not found")
-        
+
         # Save uploaded file
         upload_dir = Path("uploads/room_images")
         file_extension = Path(file.filename).suffix
         file_path = upload_dir / f"{room_id}_{uuid_lib.uuid4()}{file_extension}"
-        
+
         saved_path = await save_upload_file(file, file_path)
         logger.info(f"Saved room image to {saved_path}")
-        
+
         # Run analysis
         service = DigitalTwinService()
         result = await service.analyze_and_save_room_image(
@@ -1054,10 +1168,10 @@ async def upload_room_image(
             view_angle=view_angle,
             analysis_type=analysis_type
         )
-        
+
         logger.info(f"Room image analysis complete: {result['materials_created']} materials, "
                    f"{result['fixtures_created']} fixtures, {result['products_created']} products")
-        
+
         return RoomImageUploadResponse(
             image_id=result["image_id"],
             materials_created=result["materials_created"],
@@ -1065,7 +1179,7 @@ async def upload_room_image(
             products_created=result["products_created"],
             message=f"Successfully analyzed room image"
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1080,7 +1194,7 @@ async def get_home_digital_twin(
 ):
     """
     Get complete digital twin data for a home.
-    
+
     This endpoint retrieves all data associated with a home including:
     - Basic home information
     - Floor plans
@@ -1091,9 +1205,9 @@ async def get_home_digital_twin(
     try:
         service = DigitalTwinService()
         digital_twin = await service.get_home_digital_twin(db, home_id)
-        
+
         return DigitalTwinResponse(**digital_twin)
-    
+
     except Exception as e:
         logger.error(f"Error retrieving digital twin: {str(e)}", exc_info=True)
         if "not found" in str(e).lower():
@@ -1110,7 +1224,7 @@ async def get_home_rooms(
     try:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
-        
+
         result = await db.execute(
             select(Room)
             .options(
@@ -1122,7 +1236,7 @@ async def get_home_rooms(
             .where(Room.home_id == home_id)
         )
         rooms = result.scalars().all()
-        
+
         return [
             {
                 "id": str(room.id),
@@ -1142,7 +1256,7 @@ async def get_home_rooms(
             }
             for room in rooms
         ]
-    
+
     except Exception as e:
         logger.error(f"Error retrieving rooms: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1157,7 +1271,7 @@ async def get_room_details(
     try:
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
-        
+
         result = await db.execute(
             select(Room)
             .options(
@@ -1170,10 +1284,10 @@ async def get_room_details(
             .where(Room.id == room_id)
         )
         room = result.scalar_one_or_none()
-        
+
         if not room:
             raise HTTPException(status_code=404, detail=f"Room {room_id} not found")
-        
+
         return {
             "id": str(room.id),
             "name": room.name,
@@ -1228,7 +1342,7 @@ async def get_room_details(
                 for prod in room.products
             ]
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:

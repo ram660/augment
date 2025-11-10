@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Sparkles } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
+import { ChatModeToggle, type ChatMode } from './ChatModeToggle';
 import { chatAPI } from '@/lib/api/chat';
 import type { Message, ChatRequest } from '@/lib/types/chat';
 
@@ -20,6 +21,7 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
   const [streamingMessage, setStreamingMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState(conversationId);
+  const [chatMode, setChatMode] = useState<ChatMode>('agent'); // Default to agent mode
 
   // Fetch messages
   const { data: messages = [], isLoading } = useQuery({
@@ -79,6 +81,7 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
       conversation_id: currentConversationId,
       persona,
       scenario,
+      mode: chatMode, // Pass current chat mode
     };
 
     sendMessageMutation.mutate(request);
@@ -89,6 +92,7 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
       message: content,
       conversation_id: currentConversationId,
       persona,
+      mode: chatMode, // Pass current chat mode
       files,
     };
 
@@ -143,16 +147,21 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-4 py-6">
-          {/* Conversation Header: persona + scenario */}
-          <div className="flex items-center gap-2 mb-4">
-            <span className="px-2 py-1 rounded-full bg-white border border-gray-200 text-xs text-gray-700">
-              Persona: {headerPersona === 'homeowner' ? 'Homeowner' : headerPersona === 'diy_worker' ? 'DIY Worker' : 'Contractor'}
-            </span>
-            {scenarioLabel && (
+          {/* Conversation Header: persona + scenario + mode toggle */}
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
               <span className="px-2 py-1 rounded-full bg-white border border-gray-200 text-xs text-gray-700">
-                Scenario: {scenarioLabel}
+                Persona: {headerPersona === 'homeowner' ? 'Homeowner' : headerPersona === 'diy_worker' ? 'DIY Worker' : 'Contractor'}
               </span>
-            )}
+              {scenarioLabel && (
+                <span className="px-2 py-1 rounded-full bg-white border border-gray-200 text-xs text-gray-700">
+                  Scenario: {scenarioLabel}
+                </span>
+              )}
+            </div>
+
+            {/* Chat/Agent Mode Toggle */}
+            <ChatModeToggle mode={chatMode} onModeChange={setChatMode} />
           </div>
 
           {isLoading ? (

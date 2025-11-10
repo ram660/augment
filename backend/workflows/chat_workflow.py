@@ -18,6 +18,8 @@ from backend.workflows.base import (
 from backend.services.rag_service import RAGService
 from backend.services.conversation_service import ConversationService
 from backend.integrations.gemini.client import GeminiClient
+from backend.integrations.agentlightning.tracker import AgentTracker
+from backend.integrations.agentlightning.rewards import RewardCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,7 @@ class ChatState(BaseWorkflowState, total=False):
     user_id: Optional[str]
     persona: Optional[str]
     scenario: Optional[str]
+    mode: Optional[str]  # 'chat' | 'agent'
 
     # Context retrieval
     retrieved_context: Optional[Dict[str, Any]]
@@ -49,6 +52,14 @@ class ChatState(BaseWorkflowState, total=False):
     requires_action: bool
     suggested_actions: List[Dict[str, Any]]
     suggested_questions: List[str]
+
+    # Multimodal features (Agent mode only)
+    web_search_results: Optional[List[Dict[str, Any]]]
+    web_sources: Optional[List[str]]
+    youtube_videos: Optional[List[Dict[str, Any]]]
+    contractors: Optional[List[Dict[str, Any]]]  # Google Maps contractor search
+    generated_images: Optional[List[str]]
+    visual_aids: Optional[List[Dict[str, Any]]]
 
 
 class ChatWorkflow:
@@ -74,6 +85,11 @@ class ChatWorkflow:
         self.rag_service = RAGService(use_gemini=True)
         self.conversation_service = ConversationService(db_session)
         self.gemini_client = GeminiClient()
+
+        # Initialize Agent Lightning tracker
+        self.tracker = AgentTracker(agent_name="chat_agent")
+        self.reward_calculator = RewardCalculator()
+
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
@@ -86,6 +102,7 @@ class ChatWorkflow:
         workflow.add_node("retrieve_context", self._retrieve_context)
         workflow.add_node("load_conversation_history", self._load_conversation_history)
         workflow.add_node("generate_response", self._generate_response)
+        workflow.add_node("enrich_with_multimodal", self._enrich_with_multimodal)  # NEW: Multimodal enrichment
         workflow.add_node("suggest_actions", self._suggest_actions)
         workflow.add_node("save_conversation", self._save_conversation)
         workflow.add_node("finalize", self._finalize)
@@ -96,7 +113,8 @@ class ChatWorkflow:
         workflow.add_edge("classify_intent", "retrieve_context")
         workflow.add_edge("retrieve_context", "load_conversation_history")
         workflow.add_edge("load_conversation_history", "generate_response")
-        workflow.add_edge("generate_response", "suggest_actions")
+        workflow.add_edge("generate_response", "enrich_with_multimodal")  # NEW: Add multimodal content
+        workflow.add_edge("enrich_with_multimodal", "suggest_actions")
         workflow.add_edge("suggest_actions", "save_conversation")
         workflow.add_edge("save_conversation", "finalize")
         workflow.add_edge("finalize", END)
@@ -131,6 +149,7 @@ class ChatWorkflow:
                 "user_id": input_data.get("user_id"),
                 "persona": input_data.get("persona"),
                 "scenario": input_data.get("scenario"),
+                "mode": input_data.get("mode", "agent"),  # Default to agent mode
                 "conversation_history": input_data.get("conversation_history", []),
                 "context_sources": [],
                 "requires_action": False,
@@ -139,7 +158,14 @@ class ChatWorkflow:
                 "response_metadata": {},
                 "retrieved_context": None,
                 "ai_response": None,
-                "intent": None
+                "intent": None,
+                # Multimodal fields
+                "web_search_results": None,
+                "web_sources": None,
+                "youtube_videos": None,
+                "contractors": None,
+                "generated_images": None,
+                "visual_aids": None
             }
 
             # Execute workflow
@@ -312,7 +338,8 @@ Return JSON:
                 context,
                 history,
                 state.get("persona"),
-                state.get("scenario")
+                state.get("scenario"),
+                state.get("intent")
             )
 
             # Generate response
@@ -336,6 +363,237 @@ Return JSON:
                 "I apologize, but I'm having trouble generating a response right now. "
                 "Please try rephrasing your question or try again in a moment."
             )
+
+        return state
+
+    async def _enrich_with_multimodal(self, state: ChatState) -> ChatState:
+        """
+        Enrich response with multimodal content (Agent mode only).
+
+        Adds:
+        - Web search results (Google Grounding) for products/costs
+        - YouTube tutorial videos for DIY tasks
+        - Generated images for visual aids
+        """
+        state = self.orchestrator.mark_node_start(state, "enrich_with_multimodal")
+
+        try:
+            # Skip if in chat mode (simple conversational responses only)
+            mode = state.get("mode", "agent")
+            if mode == "chat":
+                logger.info("Chat mode: Skipping multimodal enrichment")
+                state = self.orchestrator.mark_node_complete(state, "enrich_with_multimodal", {
+                    "skipped": True,
+                    "reason": "chat_mode"
+                })
+                return state
+
+            intent = state.get("intent", "question")
+            user_message = state.get("user_message", "")
+            ai_response = state.get("ai_response", "")
+
+            # Initialize multimodal content
+            web_search_results = []
+            web_sources = []
+            youtube_videos = []
+            generated_images = []
+
+            # 1. Web Search (Google Grounding) for product recommendations and cost estimates
+            if intent in ["product_recommendation", "cost_estimate", "material_selection"]:
+                try:
+                    logger.info(f"Adding web search for intent: {intent}")
+
+                    # Build grounding query from user message and AI response
+                    grounding_input = {
+                        "user_prompt": user_message,
+                        "requested_changes": [intent],
+                        "location_hint": "Canada",  # Prefer Canadian sources
+                    }
+
+                    # Use existing Gemini grounding capability
+                    grounding_result = await self.gemini_client.suggest_products_with_grounding(
+                        grounding_input,
+                        max_items=5
+                    )
+
+                    web_search_results = grounding_result.get("products", [])
+                    web_sources = grounding_result.get("sources", [])
+
+                    logger.info(f"Found {len(web_search_results)} products, {len(web_sources)} sources")
+
+                except Exception as e:
+                    logger.warning(f"Web search failed: {e}")
+                    # Continue without web search
+
+            # 2. YouTube Videos for DIY guides and tutorials (using Google Grounding)
+            if intent in ["diy_guide", "how_to", "installation_guide"]:
+                try:
+                    logger.info(f"Adding YouTube videos for intent: {intent}")
+
+                    # Use Google Grounding to search for YouTube tutorials
+                    # This is better than YouTube API because:
+                    # 1. No API key required
+                    # 2. Already integrated
+                    # 3. Returns real results
+
+                    # Build search query for YouTube tutorials
+                    search_query = f"{user_message} tutorial site:youtube.com"
+
+                    grounding_input = {
+                        "user_prompt": search_query,
+                        "requested_changes": ["youtube_tutorial"],
+                        "location_hint": "Canada",  # Prefer Canadian creators
+                    }
+
+                    # Use Gemini grounding to search YouTube
+                    grounding_result = await self.gemini_client.suggest_products_with_grounding(
+                        grounding_input,
+                        max_items=5
+                    )
+
+                    # Parse grounding results into YouTube video format
+                    raw_results = grounding_result.get("products", [])
+                    youtube_videos = []
+
+                    for result in raw_results:
+                        url = result.get("url", "")
+                        # Only include YouTube URLs
+                        if "youtube.com" in url or "youtu.be" in url:
+                            # Extract video ID from URL
+                            video_id = None
+                            if "watch?v=" in url:
+                                video_id = url.split("watch?v=")[1].split("&")[0]
+                            elif "youtu.be/" in url:
+                                video_id = url.split("youtu.be/")[1].split("?")[0]
+
+                            video = {
+                                "video_id": video_id or url,
+                                "title": result.get("name") or result.get("title", "YouTube Tutorial"),
+                                "url": url,
+                                "description": result.get("description", ""),
+                                "channel": result.get("vendor", "YouTube"),
+                                # Grounding doesn't provide these, but we can add placeholders
+                                "thumbnail": f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg" if video_id else None,
+                                "is_trusted_channel": False,  # Can't determine from grounding
+                            }
+                            youtube_videos.append(video)
+
+                    logger.info(f"Found {len(youtube_videos)} YouTube tutorials via Google Grounding")
+
+                except Exception as e:
+                    logger.warning(f"YouTube search via grounding failed: {e}")
+                    # Continue without YouTube videos
+
+            # 3. Contractor Search (Google Maps Grounding) for contractor quotes
+            if intent in ["contractor_quotes", "find_contractor", "get_quote"]:
+                try:
+                    logger.info(f"Adding contractor search for intent: {intent}")
+
+                    # Use Google Maps Grounding to find contractors
+                    # Vancouver, BC coordinates
+                    vancouver_lat = 49.2827
+                    vancouver_lng = -123.1207
+
+                    # Build search query for contractors
+                    # Extract job type from user message
+                    job_type = "home renovation contractor"
+                    if "paint" in user_message.lower():
+                        job_type = "painting contractor"
+                    elif "plumb" in user_message.lower():
+                        job_type = "plumber"
+                    elif "electric" in user_message.lower():
+                        job_type = "electrician"
+                    elif "roof" in user_message.lower():
+                        job_type = "roofing contractor"
+                    elif "floor" in user_message.lower():
+                        job_type = "flooring contractor"
+                    elif "kitchen" in user_message.lower() or "bathroom" in user_message.lower():
+                        job_type = "kitchen and bathroom contractor"
+                    elif "hvac" in user_message.lower() or "heating" in user_message.lower() or "cooling" in user_message.lower():
+                        job_type = "HVAC contractor"
+
+                    search_query = f"{job_type} near Vancouver BC"
+
+                    # Use Gemini with Google Maps grounding
+                    from google import genai as google_genai
+                    from google.genai import types
+
+                    # Create a separate client for Maps grounding
+                    maps_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+                    maps_response = await maps_client.aio.models.generate_content(
+                        model='gemini-2.0-flash-exp',
+                        contents=f"Find the top 5 {job_type} in Vancouver, BC and surrounding areas (Burnaby, Richmond, Surrey). Include their ratings, specialties, and contact information.",
+                        config=types.GenerateContentConfig(
+                            tools=[types.Tool(google_maps=types.GoogleMaps())],
+                            tool_config=types.ToolConfig(
+                                retrieval_config=types.RetrievalConfig(
+                                    lat_lng=types.LatLng(
+                                        latitude=vancouver_lat,
+                                        longitude=vancouver_lng
+                                    )
+                                )
+                            )
+                        )
+                    )
+
+                    # Parse Maps grounding results
+                    contractors = []
+                    if hasattr(maps_response.candidates[0], 'grounding_metadata'):
+                        grounding = maps_response.candidates[0].grounding_metadata
+                        if grounding.grounding_chunks:
+                            for chunk in grounding.grounding_chunks[:5]:  # Top 5 contractors
+                                if hasattr(chunk, 'maps'):
+                                    contractor = {
+                                        "name": chunk.maps.title,
+                                        "place_id": chunk.maps.place_id,
+                                        "url": chunk.maps.uri,
+                                        "type": job_type,
+                                        "location": "Vancouver, BC area",
+                                    }
+                                    contractors.append(contractor)
+
+                    # Store in state
+                    state["response_metadata"]["contractors"] = contractors
+
+                    logger.info(f"Found {len(contractors)} contractors via Google Maps Grounding")
+
+                except Exception as e:
+                    logger.warning(f"Contractor search via Maps grounding failed: {e}")
+                    # Continue without contractor results
+
+            # 4. Image Generation for design concepts and visual aids
+            # Note: We'll add this in a future iteration to avoid overloading the response
+            # For now, we'll focus on web search, YouTube videos, and contractor search
+
+            # Store multimodal content in state
+            state["web_search_results"] = web_search_results
+            state["web_sources"] = web_sources
+            state["youtube_videos"] = youtube_videos
+            state["generated_images"] = generated_images
+
+            # Add to response metadata for frontend display
+            if web_search_results or web_sources:
+                state["response_metadata"]["web_search_results"] = web_search_results
+                state["response_metadata"]["web_sources"] = web_sources
+
+            if youtube_videos:
+                state["response_metadata"]["youtube_videos"] = youtube_videos
+
+            if generated_images:
+                state["response_metadata"]["generated_images"] = generated_images
+
+            state = self.orchestrator.mark_node_complete(state, "enrich_with_multimodal", {
+                "web_results": len(web_search_results),
+                "web_sources": len(web_sources),
+                "youtube_videos": len(youtube_videos),
+                "generated_images": len(generated_images)
+            })
+
+        except Exception as e:
+            logger.error(f"Multimodal enrichment failed: {e}", exc_info=True)
+            state = self.orchestrator.add_error(state, e, "enrich_with_multimodal", recoverable=True)
+            # Continue without multimodal content
 
         return state
 
@@ -620,6 +878,41 @@ Scenario: {scenario_label}
                 }
             }
 
+            # Track interaction with Agent Lightning
+            try:
+                # Calculate implicit reward based on response quality
+                response_metadata = {
+                    "intent": state.get("intent"),
+                    "intent_confidence": state.get("response_metadata", {}).get("intent_confidence", 0.5),
+                    "context_used": bool(state.get("context_sources")),
+                    "suggested_actions": state.get("suggested_actions", []),
+                    "response_length": len(state.get("ai_response", "")),
+                    "execution_time": execution_time,
+                    "errors": len(state.get("errors", []))
+                }
+
+                # Calculate implicit reward (will be updated later with explicit feedback)
+                implicit_reward = self.reward_calculator.calculate_implicit_reward(
+                    response_metadata=response_metadata
+                )
+
+                # Track the interaction
+                self.tracker.track_chat_message(
+                    user_message=state["user_message"],
+                    ai_response=state.get("ai_response", ""),
+                    conversation_id=state["conversation_id"],
+                    intent=state.get("intent"),
+                    home_id=state.get("home_id"),
+                    persona=state.get("persona"),
+                    reward=implicit_reward
+                )
+
+                logger.debug(f"Tracked interaction with implicit reward: {implicit_reward:.2f}")
+
+            except Exception as tracking_error:
+                # Don't fail the workflow if tracking fails
+                logger.warning(f"Failed to track interaction with Agent Lightning: {tracking_error}")
+
             state = self.orchestrator.mark_completed(state, result)
             logger.info(f"Chat workflow completed in {execution_time:.2f}s")
 
@@ -635,7 +928,8 @@ Scenario: {scenario_label}
         context: Optional[Dict[str, Any]],
         history: List[Dict[str, str]],
         persona: Optional[str] = None,
-        scenario: Optional[str] = None
+        scenario: Optional[str] = None,
+        intent: Optional[str] = None,
     ) -> str:
         """Build comprehensive prompt for response generation."""
         prompt_parts = []
@@ -643,48 +937,60 @@ Scenario: {scenario_label}
         # System prompt
         prompt_parts.append("""You are HomeView AI, an intelligent home improvement assistant. You help homeowners, DIY enthusiasts, and contractors understand their homes and plan improvements.
 
-Your capabilities:
-- Analyze home data including floor plans, rooms, materials, and fixtures
-- Answer questions about specific rooms and their features
-- Provide improvement suggestions and design recommendations
-- Estimate renovation costs
-- Explain materials and fixtures in detail
-- Help plan home improvement projects
+Your capabilities (available platform actions you can guide to):
+- Estimate renovation costs (detailed cost breakdowns)
+- Create DIY project plans with tools, materials, safety, and effort
+- Generate a shopping list from a DIY plan
+- Open the Design Studio to generate/edit visuals (paint, flooring, cabinets, furniture, staging) from user photos
+- Recommend products (prefer Canadian/.ca vendors when possible)
+- Prepare a contractor-quote brief
+- Export DIY plans or summaries as downloadable PDFs
 
 Guidelines:
 - Be concise, clear, and professional; avoid fluff.
 - Ground answers in the conversation history; don't repeat long lists already given.
 - Prefer 3–6 short bullets or 1–3 short paragraphs; aim for 60–120 words unless the user asks for more.
-- If critical info is missing, ask 1–2 specific clarifying questions.
-- End with a single next-step prompt (e.g., "Would you like A or B?").
+- If critical info is missing, ask 1–2 specific clarifying questions in a friendly tone (e.g., “I can run that — could you share X and Y?”).
+- End with one decisive next step (A/B style), matching the user’s goal.
 - Keep Canadian context in mind; prefer .ca vendors when mentioning products.
 - Do not reference any Digital Twin or home_id unless explicitly provided by the user.
+- CRITICAL: You CAN create and export PDFs. Never say "I cannot create PDF documents" or similar. When asked for a PDF, confirm you can do it and guide the user to provide any missing content (e.g., create a DIY plan first if needed).
+- Avoid repeating the same suggestion chips every message. If an action was just offered, propose the next logical step instead.
 """)
 
-        # Persona-specific guidance
-        if persona:
-            if persona == "homeowner":
-                prompt_parts.append(
-                    "\nPersona: Homeowner. Be supportive and practical. Offer both contractor-quote and DIY pathways neutrally; do not force contractor handoff unless asked."
-                )
-            elif persona == "diy_worker":
-                prompt_parts.append(
-                    "\nPersona: DIY Worker. Emphasize step-by-step guidance, safety, tool lists, and material breakdowns. Avoid contractor handoff unless explicitly requested."
-                )
-            elif persona == "contractor":
-                prompt_parts.append(
-                    "\nPersona: Contractor. Focus on scope of work, estimating considerations, material takeoffs, timelines, and client-ready clarity."
-                )
+        # Universal guidance (persona-agnostic - respond based on user's actual questions)
+        prompt_parts.append("""
+Respond universally to all users based on their questions and needs, not their persona label:
+- If they ask about costs or budgets → provide estimates and offer contractor quotes if they want professional help
+- If they ask "how to" or want to DIY → provide step-by-step guidance and offer to create a detailed DIY plan
+- If they ask about products → recommend products with Canadian/.ca vendors preferred
+- If they ask about design/visuals → offer to generate mockups in the Design Studio
+- If they want to hire help → guide them to prepare a contractor brief
+- Always offer BOTH pathways (DIY and contractor) neutrally unless the user has clearly chosen one
 
-        # Scenario-specific guidance
+Adapt your tone and detail level to match what the user is asking for, not what their persona label says.
+""")
+
+        # Scenario-specific guidance (only if explicitly set)
         if scenario == "contractor_quotes":
             prompt_parts.append(
-                "\nScenario: Get Contractor Quotes. Gather key project details (scope, dimensions, materials, constraints), propose a concise brief the user can send to contractors, and list follow-up questions."
+                "\nCurrent focus: Contractor Quotes. Gather key project details (scope, dimensions, materials, constraints), propose a concise brief the user can send to contractors."
             )
         elif scenario == "diy_project_plan":
             prompt_parts.append(
-                "\nScenario: DIY Project Plan. Produce a concise, ordered plan with tools, materials, estimated effort, safety notes, and dependencies."
+                "\nCurrent focus: DIY Project Plan. Produce a concise, ordered plan with tools, materials, estimated effort, safety notes, and dependencies."
             )
+
+        # Inject Skills context (concise)
+        try:
+            from backend.services.skill_manager import SkillManager  # local import
+            sm = SkillManager()
+            skill_context = sm.get_context(intent, persona, scenario, user_message)
+            if skill_context:
+                prompt_parts.append(skill_context)
+        except Exception:
+            # Non-fatal if skills are unavailable
+            pass
 
         # Add context if available
         if context and context.get("context_text"):

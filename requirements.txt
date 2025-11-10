@@ -69,3 +69,6 @@ stripe>=7.0.0
 pgvector>=0.2.4
 sentence-transformers>=3.0.1
 
+# Agent Optimization & Training
+agentlightning>=0.2.1  # Reinforcement learning for agent optimization
+
