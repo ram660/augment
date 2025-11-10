@@ -1,19 +1,42 @@
-# 📚 HomeVision AI - Documentation Index
+# 📚 HomeView AI - Documentation Index
 
-**Last Updated:** 2025-11-01  
-**Version:** 1.0
+**Last Updated:** 2025-11-10
+**Version:** 2.0 (Cleaned & Organized)
 
-Welcome to the HomeVision AI documentation. This index provides a complete guide to all available documentation organized by category.
+Welcome to the HomeView AI documentation. This index provides quick access to all documentation resources.
 
 ---
 
 ## 🚀 Quick Start
 
-**New to the project?** Start here:
+**New to HomeView AI? Start here:**
 
-1. **[README.md](../README.md)** - Project overview and quick setup
-2. **[Getting Started Guide](guides/GETTING_STARTED.md)** - Step-by-step developer onboarding
-3. **[Gemini Model Configuration](guides/GEMINI_MODEL_CONFIGURATION.md)** - AI model setup
+1. **[Quick Start Guide](../QUICK_START.md)** - Get up and running in 5 minutes
+2. **[Development Setup](DEVELOPMENT_SETUP.md)** - Set up your development environment
+3. **[Startup Guide](STARTUP_GUIDE.md)** - How to start the application locally
+4. **[Getting Started Guide](guides/GETTING_STARTED.md)** - Comprehensive developer onboarding
+
+---
+
+## ☁️ Deployment
+
+**Deploy to Railway (Free hosting):**
+
+- **[Railway Deployment Guide](RAILWAY_DEPLOYMENT_GUIDE.md)** - Complete step-by-step deployment instructions
+- **[Railway Deployment Checklist](../RAILWAY_DEPLOYMENT_CHECKLIST.md)** - Quick deployment checklist
+- **[Deployment Ready Summary](DEPLOYMENT_READY_SUMMARY.md)** - Overview of deployment readiness
+
+**Estimated deployment time:** 15-20 minutes
+
+---
+
+## 🔧 API Documentation
+
+**Interactive API Documentation:**
+
+- **[Swagger Testing Guide](SWAGGER_TESTING_GUIDE.md)** - How to use the API documentation
+- **[API Docs (Local)](http://localhost:8000/docs)** - Interactive Swagger UI (when running locally)
+- **[ReDoc (Local)](http://localhost:8000/redoc)** - Alternative API documentation view
 
 ---
 
@@ -21,273 +44,133 @@ Welcome to the HomeVision AI documentation. This index provides a complete guide
 
 ```
 docs/
-├── business/           # Business strategy and planning
-├── architecture/       # Technical architecture and design
+├── analysis/          # Technical analysis and research
+├── architecture/      # Technical architecture and design
+├── business/          # Business strategy and planning
+├── company/           # Company strategy and positioning
 ├── guides/            # How-to guides and tutorials
 └── reference/         # API reference and feature catalogs
 ```
 
 ---
 
-## 💼 Business Documentation
+## 🔍 Analysis & Research
 
-### [business.md](business/business.md)
-**Purpose:** Complete business plan and strategy  
-**Contents:**
-- Market analysis and opportunity
-- Three-pillar platform strategy
-- Revenue models and pricing
-- Competitive advantages
-- Go-to-market strategy
-- Financial projections
+**Technical Analysis:**
 
-**Audience:** Founders, investors, business stakeholders
+- **[AI Technology Integration Analysis](analysis/AI_TECHNOLOGY_INTEGRATION_ANALYSIS.md)** - AI tech stack analysis
+- **[Deep Dive Integration Guide](analysis/DEEP_DIVE_INTEGRATION_GUIDE.md)** - Integration deep dive (Part 1)
+- **[Deep Dive Part 2](analysis/DEEP_DIVE_PART2.md)** - Integration deep dive (Part 2)
+- **[Deep Dive Part 3](analysis/DEEP_DIVE_PART3.md)** - Integration deep dive (Part 3)
+- **[Implementation Plan](analysis/IMPLEMENTATION_PLAN.md)** - Detailed implementation plan
 
 ---
 
-### [problem-solving.md](business/problem-solving.md)
-**Purpose:** Problem-solution framework  
-**Contents:**
-- Core problems in home improvement industry
-- Solution pillars and approach
-- Expected impact and KPIs
-- Measurable outcomes
+## 🏗️ Architecture
 
-**Audience:** Product managers, stakeholders
+**System Design & Architecture:**
 
----
-
-## 🏗️ Architecture Documentation
-
-### [ENHANCED_AGENTIC_ARCHITECTURE.md](architecture/ENHANCED_AGENTIC_ARCHITECTURE.md)
-**Purpose:** Core multi-agent system architecture  
-**Contents:**
-- 15+ specialized AI agents
-- Agent roles and capabilities
-- LangGraph workflow patterns
-- Technology stack
-- Agent interaction patterns
-
-**Audience:** Developers, architects, technical leads
+- **[System Architecture Diagrams](architecture/SYSTEM_ARCHITECTURE_DIAGRAMS.md)** - Visual system overview
+- **[Agentic Workflow Architecture](architecture/AGENTIC_WORKFLOW_ARCHITECTURE.md)** - Multi-agent system design
+- **[Enhanced Agentic Architecture](architecture/ENHANCED_AGENTIC_ARCHITECTURE.md)** - Advanced agent patterns
+- **[Implementation Roadmap](architecture/IMPLEMENTATION_ROADMAP.md)** - Development roadmap
+- **[Architecture README](architecture/README.md)** - Architecture overview
 
 ---
 
-### [IMPLEMENTATION_ROADMAP.md](architecture/IMPLEMENTATION_ROADMAP.md)
-**Purpose:** 20-week phased development plan  
-**Contents:**
-- Week-by-week implementation schedule
-- Complete database schema (SQL)
-- Success metrics for each phase
-- Technical milestones
-- Resource allocation
+## 📖 Technical Guides
 
-**Audience:** Project managers, developers, technical leads
+**Developer Guides:**
 
----
-
-### [AGENTIC_WORKFLOW_ARCHITECTURE.md](architecture/AGENTIC_WORKFLOW_ARCHITECTURE.md)
-**Purpose:** n8n-style workflow automation architecture  
-**Contents:**
-- Workflow orchestration engine design
-- Agent definitions and responsibilities
-- Data flow patterns
-- Event-driven architecture
-- Workflow composition patterns
-
-**Audience:** Backend developers, workflow engineers
+- **[Getting Started](guides/GETTING_STARTED.md)** - Comprehensive getting started guide
+- **[Agent Prompts Guide](guides/AGENT_PROMPTS_GUIDE.md)** - How to work with AI agents
+- **[Prompt Engineering Guide](guides/PROMPT_ENGINEERING_GUIDE.md)** - Best practices for prompts
+- **[Gemini Model Configuration](guides/GEMINI_MODEL_CONFIGURATION.md)** - Configure Gemini AI models
+- **[DeepSeek OCR for Floorplans](guides/DEEPSEEK_OCR_FOR_FLOORPLANS.md)** - OCR integration guide
+- **[Floorplan Image Linking Guide](guides/FLOORPLAN_IMAGE_LINKING_GUIDE.md)** - Link images to floor plans
+- **[Guides README](guides/README.md)** - Guides overview
 
 ---
 
-### [SYSTEM_ARCHITECTURE_DIAGRAMS.md](architecture/SYSTEM_ARCHITECTURE_DIAGRAMS.md)
-**Purpose:** Visual system architecture and workflows  
-**Contents:**
-- Mermaid diagrams for all major workflows
-- Database schema visualizations
-- Agent communication patterns
-- Integration points
-- End-to-end user journeys
+## 💼 Business & Strategy
 
-**Audience:** All technical team members, visual learners
+**Business Documentation:**
 
----
+- **[Business Overview](business/business.md)** - Business model and value proposition
+- **[Problem Solving Approach](business/problem-solving.md)** - How we solve customer problems
+- **[Business README](business/README.md)** - Business documentation overview
 
-## 📖 Guides
+**Company Strategy:**
 
-### [GETTING_STARTED.md](guides/GETTING_STARTED.md)
-**Purpose:** Developer onboarding and setup  
-**Contents:**
-- Environment setup
-- Installation instructions
-- First agent tutorial
-- Testing guide
-- Common troubleshooting
-
-**Audience:** New developers
+- **[PMVV Framework](company/PMVV_FRAMEWORK.md)** - Purpose, Mission, Vision, Values
+- **[PMVV Executive Summary](company/PMVV_EXECUTIVE_SUMMARY.md)** - Executive summary
+- **[PMVV Implementation Guide](company/PMVV_IMPLEMENTATION_GUIDE.md)** - Implementation guide
+- **[PMVV Messaging Guide](company/PMVV_MESSAGING_GUIDE.md)** - Messaging and communication
+- **[Competitive Analysis](company/COMPETITIVE_ANALYSIS_SUMMARY.md)** - Market competitive analysis
+- **[Competitive Positioning](company/COMPETITIVE_POSITIONING.md)** - Market positioning strategy
+- **[Competitive Strategy Visual Deck](company/COMPETITIVE_STRATEGY_VISUAL_DECK.md)** - Visual strategy deck
+- **[Competitive Visual Diagrams](company/COMPETITIVE_VISUAL_DIAGRAMS.md)** - Visual diagrams
+- **[Venture Validation Framework](company/VENTURE_VALIDATION_FRAMEWORK.md)** - Validation framework
 
 ---
 
-### [GEMINI_MODEL_CONFIGURATION.md](guides/GEMINI_MODEL_CONFIGURATION.md)
-**Purpose:** Complete guide to Gemini 2.5 Flash integration  
-**Contents:**
-- Model selection rationale
-- Configuration examples
-- Usage patterns (text, vision, image generation)
-- Best practices
-- Performance optimization
-- Monitoring and debugging
+## 📚 Reference
 
-**Audience:** AI/ML developers, backend developers
+**Reference Materials:**
+
+- **[Feature Catalog](reference/FEATURE_CATALOG.md)** - Complete feature list
+- **[RAG Documentation](reference/rag.md)** - Retrieval-Augmented Generation docs
+- **[Notebooks Prompt Context](reference/NOTEBOOKS_PROMPT_CONTEXT.md)** - Jupyter notebook prompts
+- **[Reference README](reference/README.md)** - Reference overview
 
 ---
 
-### [FLOORPLAN_IMAGE_LINKING_GUIDE.md](guides/FLOORPLAN_IMAGE_LINKING_GUIDE.md)
-**Purpose:** Link floor plan geometry with interior photos using Gemini 2.5
-**Contents:**
-- Unified schema (Home, Floor, Room, Photo, RoomPhotoLink)
-- End-to-end pipeline (plan → photo tagging → linking → pose → UI)
-- Photo tagging prompt (Gemini 2.5 Flash)
-- Scoring algorithm and QA metrics
-- Storage patterns and runbook
+## 🤝 Contributing
 
-**Audience:** Computer vision developers, backend engineers, product engineers
+**Contribution Guidelines:**
+
+- **[Contributing Guidelines](../CONTRIBUTING.md)** - How to contribute to the project
+- **[Changelog](../CHANGELOG.md)** - Version history and changes
 
 ---
 
-### [DEEPSEEK_OCR_FOR_FLOORPLANS.md](guides/DEEPSEEK_OCR_FOR_FLOORPLANS.md)
-**Purpose:** Use DeepSeek-OCR to improve plan OCR (labels, dimensions, scale) and boost overall accuracy
-**Contents:**
-- Where to integrate DeepSeek-OCR in the pipeline
-- Hybrid inference (Gemini geometry + DeepSeek OCR refinement)
-- Merge logic and confidence rules
-- Evaluation metrics and rollout plan
+## 🎯 Quick Navigation
 
-**Audience:** AI engineers working on plan parsing accuracy and data quality
+### For Developers
+- 🚀 [Quick Start](../QUICK_START.md)
+- 🔧 [Development Setup](DEVELOPMENT_SETUP.md)
+- 📖 [API Documentation](http://localhost:8000/docs)
+- 🏗️ [Architecture Overview](architecture/README.md)
 
----
+### For Deployment
+- ☁️ [Railway Deployment Guide](RAILWAY_DEPLOYMENT_GUIDE.md)
+- ✅ [Deployment Checklist](../RAILWAY_DEPLOYMENT_CHECKLIST.md)
+- 📋 [Deployment Summary](DEPLOYMENT_READY_SUMMARY.md)
 
-### [PROMPT_ENGINEERING_GUIDE.md](guides/PROMPT_ENGINEERING_GUIDE.md)
-**Purpose:** Universal prompt engineering for home improvement  
-**Contents:**
-- Core prompt structures
-- Room types and configurations
-- Transformation categories (paint, flooring, cabinetry, etc.)
-- Design styles library
-- Quality control patterns
-- 2600+ lines of prompt templates
+### For Business
+- 💼 [Business Overview](business/business.md)
+- 🎯 [PMVV Framework](company/PMVV_FRAMEWORK.md)
+- 📊 [Competitive Analysis](company/COMPETITIVE_ANALYSIS_SUMMARY.md)
 
-**Audience:** AI developers, prompt engineers, product designers
-
----
-
-### [AGENT_PROMPTS_GUIDE.md](guides/AGENT_PROMPTS_GUIDE.md)
-**Purpose:** Specialized prompts for DIY and Contractor agents  
-**Contents:**
-- Safety assessment prompts
-- Project planning prompts
-- Cost estimation prompts
-- Compliance checking prompts
-- 4000+ lines of agent-specific prompts
-
-**Audience:** Agent developers, AI engineers
+### For Technical Deep Dives
+- 🔍 [AI Integration Analysis](analysis/AI_TECHNOLOGY_INTEGRATION_ANALYSIS.md)
+- 📖 [Deep Dive Guide](analysis/DEEP_DIVE_INTEGRATION_GUIDE.md)
+- 🏗️ [System Architecture](architecture/SYSTEM_ARCHITECTURE_DIAGRAMS.md)
 
 ---
 
-## 📚 Reference Documentation
+## 📞 Support
 
-### [FEATURE_CATALOG.md](reference/FEATURE_CATALOG.md)
-**Purpose:** Complete catalog of implemented features  
-**Contents:**
-- Core system features
-- Image analysis capabilities
-- Room transformation features
-- Quality metrics
-- API integration details
+**Need Help?**
 
-**Audience:** Product managers, QA, developers
+- **GitHub Issues**: [Report a bug or request a feature](https://github.com/ram660/augment/issues)
+- **Documentation**: You're here! Browse the guides above
+- **API Docs**: http://localhost:8000/docs (when running locally)
 
 ---
 
-### [NOTEBOOKS_PROMPT_CONTEXT.md](reference/NOTEBOOKS_PROMPT_CONTEXT.md)
-**Purpose:** Original Jupyter notebook documentation  
-**Contents:**
-- Notebook-based image processing workflows
-- Room visualization techniques
-- Paint color testing
-- Flooring replacement
-- Quality metrics implementation
-
-**Audience:** Data scientists, ML engineers, reference for migration
-
----
-
-## 🎯 Documentation by Use Case
-
-### **I want to understand the business**
-1. [business.md](business/business.md)
-2. [problem-solving.md](business/problem-solving.md)
-
-### **I want to understand the technical architecture**
-1. [ENHANCED_AGENTIC_ARCHITECTURE.md](architecture/ENHANCED_AGENTIC_ARCHITECTURE.md)
-2. [SYSTEM_ARCHITECTURE_DIAGRAMS.md](architecture/SYSTEM_ARCHITECTURE_DIAGRAMS.md)
-3. [AGENTIC_WORKFLOW_ARCHITECTURE.md](architecture/AGENTIC_WORKFLOW_ARCHITECTURE.md)
-
-### **I want to start developing**
-1. [../README.md](../README.md)
-2. [GETTING_STARTED.md](guides/GETTING_STARTED.md)
-3. [GEMINI_MODEL_CONFIGURATION.md](guides/GEMINI_MODEL_CONFIGURATION.md)
-4. [FLOORPLAN_IMAGE_LINKING_GUIDE.md](guides/FLOORPLAN_IMAGE_LINKING_GUIDE.md)
-
-### **I want to build AI agents**
-1. [ENHANCED_AGENTIC_ARCHITECTURE.md](architecture/ENHANCED_AGENTIC_ARCHITECTURE.md)
-2. [AGENT_PROMPTS_GUIDE.md](guides/AGENT_PROMPTS_GUIDE.md)
-3. [PROMPT_ENGINEERING_GUIDE.md](guides/PROMPT_ENGINEERING_GUIDE.md)
-
-### **I want to plan the project**
-1. [IMPLEMENTATION_ROADMAP.md](architecture/IMPLEMENTATION_ROADMAP.md)
-2. [FEATURE_CATALOG.md](reference/FEATURE_CATALOG.md)
-
-### **I want to understand what's already built**
-1. [FEATURE_CATALOG.md](reference/FEATURE_CATALOG.md)
-2. [NOTEBOOKS_PROMPT_CONTEXT.md](reference/NOTEBOOKS_PROMPT_CONTEXT.md)
-
----
-
-## 📊 Documentation Statistics
-
-| Category | Files | Total Lines | Purpose |
-|----------|-------|-------------|---------|
-| **Business** | 2 | ~1,500 | Strategy and planning |
-| **Architecture** | 4 | ~3,500 | System design |
-| **Guides** | 4 | ~7,000 | How-to and tutorials |
-| **Reference** | 2 | ~1,000 | Feature catalogs |
-| **Total** | 12 | ~13,000 | Complete documentation |
-
----
-
-## 🔄 Documentation Maintenance
-
-### Update Frequency
-- **Business docs**: Quarterly or when strategy changes
-- **Architecture docs**: When major architectural decisions are made
-- **Guides**: When features are added or changed
-- **Reference**: Continuously as features are implemented
-
-### Contributing to Documentation
-1. Keep documentation in sync with code
-2. Update INDEX.md when adding new docs
-3. Use clear headings and table of contents
-4. Include code examples where applicable
-5. Add diagrams for complex concepts
-
----
-
-## 📞 Getting Help
-
-- **Technical Questions**: See [GETTING_STARTED.md](guides/GETTING_STARTED.md)
-- **Business Questions**: See [business.md](business/business.md)
-- **Architecture Questions**: See [ENHANCED_AGENTIC_ARCHITECTURE.md](architecture/ENHANCED_AGENTIC_ARCHITECTURE.md)
-
----
+*Last Updated: 2025-11-10*
+*Documentation cleaned and organized for clarity*
 
 **Happy Building! 🚀**
 
