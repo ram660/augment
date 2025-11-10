@@ -1,0 +1,130 @@
+template_id: contractor_brief_prompt
+name: Contractor Brief Generation Prompt
+description: Prompt template for generating contractor project briefs
+template_type: prompt
+version: "1.0.0"
+tags:
+  - prompt
+  - contractor
+  - brief
+author: HomeView AI
+
+content:
+  system_prompt: |
+    You are an expert at creating detailed contractor project briefs.
+    
+    Generate a professional contractor brief that includes:
+    
+    1. **Project Overview**
+       - Project type: {project_type}
+       - Location: {location}
+       - Timeline: {timeline}
+    
+    2. **Scope of Work**
+       - Detailed description of work to be performed
+       - Specific tasks and deliverables
+       - Materials and finishes specified
+    
+    3. **Requirements**
+       - Dimensions and measurements
+       - Building codes and permits
+       - Quality standards
+       - Warranty expectations
+    
+    4. **Budget**
+       - Budget range: {budget_range}
+       - Payment terms preferences
+       - Contingency allowance
+    
+    5. **Timeline**
+       - Desired start date: {start_date}
+       - Desired completion date: {completion_date}
+       - Key milestones
+    
+    6. **Contractor Qualifications**
+       - Required licenses and insurance
+       - Experience requirements
+       - References requested
+    
+    7. **Additional Information**
+       - Site access details
+       - Working hours constraints
+       - Special considerations
+    
+    Format the brief professionally and ensure all critical details are included.
+    Make it clear, specific, and actionable for contractors to provide accurate quotes.
+  
+  variables:
+    - project_type
+    - location
+    - timeline
+    - budget_range
+    - start_date
+    - completion_date
+  
+  output_format: markdown
+  
+  example_output: |
+    # Contractor Project Brief
+    
+    ## Project Overview
+    **Project Type:** Kitchen Renovation
+    **Location:** Toronto, ON
+    **Timeline:** 6-8 weeks
+    
+    ## Scope of Work
+    Complete kitchen renovation including:
+    - Remove existing cabinets, countertops, and appliances
+    - Install new custom cabinets (shaker style, white)
+    - Install quartz countertops (Caesarstone)
+    - Install new stainless steel appliances (provided by owner)
+    - Update electrical for new appliances
+    - Install new tile backsplash
+    - Refinish hardwood floors
+    - Paint walls and ceiling
+    
+    ## Requirements
+    - Kitchen dimensions: 12' x 14'
+    - Building permit required
+    - All work must meet Ontario Building Code
+    - Electrical work by licensed electrician
+    - 1-year warranty on workmanship
+    
+    ## Budget
+    - Budget Range: $25,000 - $35,000
+    - Payment: 30% deposit, 40% at midpoint, 30% on completion
+    - 10% contingency included
+    
+    ## Timeline
+    - Desired Start: March 1, 2025
+    - Desired Completion: April 15, 2025
+    - Key Milestones:
+      - Week 1: Demolition and rough-in
+      - Week 2-3: Cabinet installation
+      - Week 4-5: Countertops and backsplash
+      - Week 6: Final finishes and cleanup
+    
+    ## Contractor Qualifications
+    - Valid contractor license in Ontario
+    - $2M liability insurance
+    - WSIB coverage
+    - Minimum 5 years kitchen renovation experience
+    - 3 recent references required
+    
+    ## Additional Information
+    - Site access: Monday-Friday, 8am-5pm
+    - Parking available on street
+    - Homeowner will be present during work
+    - Dust containment required (rest of house occupied)
+  
+  validation_rules:
+    - project_type: required
+    - location: required
+    - budget_range: required
+    - timeline: required
+  
+  related_templates:
+    - cost_estimate_prompt
+    - contractor_persona
+    - kitchen_renovation
+

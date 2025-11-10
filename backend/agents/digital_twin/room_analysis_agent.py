@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from backend.agents.base import BaseAgent, AgentConfig, AgentRole, AgentResponse
-from backend.integrations.gemini import GeminiClient
+from backend.services.vision_service import UnifiedVisionService
 from backend.utils.room_type_normalizer import normalize_room_type
 from backend.utils.enum_normalizer import normalize_material_category, normalize_fixture_type
 
@@ -34,7 +34,7 @@ class RoomAnalysisAgent(BaseAgent):
             enable_memory=False
         )
         super().__init__(config)
-        self.gemini_client = GeminiClient()
+        self.vision = UnifiedVisionService()
 
     async def process(self, input_data: Dict[str, Any]) -> AgentResponse:
         """
@@ -72,7 +72,7 @@ class RoomAnalysisAgent(BaseAgent):
             logger.info(f"Analyzing room image: {image_path} (type: {analysis_type})")
             start_time = datetime.utcnow()
 
-            analysis_result = await self.gemini_client.analyze_image(
+            analysis_result = await self.vision.analyze_room(
                 image=image_path,
                 prompt=prompt,
                 temperature=0.3

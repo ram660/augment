@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './VariationGallery.css';
 import BeforeAfterSlider from './BeforeAfterSlider';
 
-const VariationGallery = ({ transformation, originalImage, onClose, onSelectFavorite }) => {
+const VariationGallery = ({ transformation, originalImage, onClose, onSelectFavorite, enableFavorite = false }) => {
   const [selectedVariation, setSelectedVariation] = useState(null);
   const [showComparison, setShowComparison] = useState(false);
 
@@ -125,13 +125,15 @@ const VariationGallery = ({ transformation, originalImage, onClose, onSelectFavo
                 </div>
 
                 <div className="variation-actions">
-                  <button
-                    className="action-button"
-                    onClick={() => handleSetFavorite(index)}
-                    title="Mark as favorite"
-                  >
-                    ⭐
-                  </button>
+                  {enableFavorite && (
+                    <button
+                      className="action-button"
+                      onClick={() => handleSetFavorite(index)}
+                      title="Mark as favorite"
+                    >
+                      ⭐
+                    </button>
+                  )}
                   <button
                     className="action-button"
                     onClick={() => handleDownload(imageUrl, `transformation_${index + 1}.jpg`)}

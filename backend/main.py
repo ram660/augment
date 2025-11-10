@@ -1,5 +1,6 @@
 """Main FastAPI application for HomeVision AI."""
 
+import os
 import logging
 from contextlib import asynccontextmanager
 
@@ -14,6 +15,10 @@ from backend.api.design import router as design_router
 from backend.api.auth import router as auth_router
 from backend.api.chat import router as chat_router
 from backend.api.product import router as product_router
+from backend.api.documents import router as documents_router
+from backend.api.admin import router as admin_router
+from backend.api.monitoring import router as monitoring_router
+from backend.api.journey import router as journey_router
 from backend.models.base import init_db_async
 from backend.middleware import RateLimitMiddleware, MonitoringMiddleware
 from backend.services.monitoring_service import get_monitoring_service
@@ -131,8 +136,16 @@ An AI-powered SaaS platform for homeowners, DIY workers, and contractors featuri
             "description": "Design studio and image generation. Transform room designs with AI-powered style transfer and variations."
         },
         {
+            "name": "documents",
+            "description": "Document parsing endpoints. Upload contractor quotes, datasheets, and inspection reports to extract structured data."
+        },
+        {
             "name": "health",
             "description": "System health and monitoring endpoints."
+        },
+        {
+            "name": "journey",
+            "description": "Journey management for tracking user progress through home improvement projects."
         }
     ],
     docs_url="/docs",
@@ -141,9 +154,12 @@ An AI-powered SaaS platform for homeowners, DIY workers, and contractors featuri
 )
 
 # Configure CORS
+# Get allowed origins from environment variable or use defaults
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=CORS_ORIGINS,  # Configured via environment variable
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -162,6 +178,10 @@ app.include_router(product_router)
 app.include_router(digital_twin_router)
 app.include_router(intelligence_router)
 app.include_router(design_router)
+app.include_router(documents_router)
+app.include_router(admin_router)
+app.include_router(monitoring_router)  # NEW: Monitoring and health checks
+app.include_router(journey_router)  # NEW: Journey management
 
 # Mount static files for frontend
 frontend_path = Path(__file__).parent.parent / "frontend"

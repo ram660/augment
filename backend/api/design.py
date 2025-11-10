@@ -169,6 +169,21 @@ class SegmentResponse(BaseModel):
     mask_data_urls: List[str]
 
 
+class PreciseEditRequest(BaseModel):
+    """Orchestrates polygon/segment -> masked edit for precise changes."""
+    room_image_id: UUID
+    mode: str = Field(default="polygon", description="polygon | segment")
+    points: Optional[List[List[int]]] = Field(None, description="Polygon points [[x,y],...] for polygon mode (absolute pixels)")
+    points_normalized: Optional[List[List[float]]] = Field(
+        None,
+        description="Optional normalized polygon points [[x,y] in 0..1] relative to the image; if provided, overrides 'points'"
+    )
+    segment_class: Optional[str] = Field(None, description="Class for segmentation (e.g., floor, walls)")
+    operation: str = Field(..., description="remove | replace")
+    replacement_prompt: Optional[str] = Field(None, description="Describe what to place for 'replace'")
+    num_variations: int = Field(default=2, ge=1, le=4)
+
+
 # Upload-capable request models (no Digital Twin required)
 class VirtualStagingUploadRequest(BaseModel):
     image_data_url: str = Field(..., description="Base64 data URL of the image (data:image/...;base64,...) or raw base64")
@@ -287,6 +302,7 @@ class AnalyzeImageResponse(BaseModel):
     summary: Dict[str, Any] = {}
     ideas: List[str] = []
     ideas_by_theme: Dict[str, List[str]] = {}
+    style_transformations: List[Dict[str, Any]] = []
 
 class TransformationHistoryItem(BaseModel):
     """Model for transformation history item."""
@@ -857,12 +873,137 @@ async def segment(
             b64 = base64.b64encode(buf.getvalue()).decode("ascii")
             data_urls.append(f"data:image/png;base64,{b64}")
 
+
         return SegmentResponse(mask_data_urls=data_urls)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"segment failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/precise-edit", response_model=TransformationResponse)
+async def precise_edit(
+    request: PreciseEditRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Orchestrates polygon/segment selection -> masked edit remove/replace.
+    - If mode == 'polygon': uses absolute 'points' or normalized 'points_normalized' scaled to the base image size
+    - If mode == 'segment': uses AI segmentation to obtain a mask for the given class
+
+    Editing follows Gemini masked multimodal guidance:
+    https://ai.google.dev/gemini-api/docs/image-generation
+    """
+    start_time = time.time()
+    storage_service = TransformationStorageService()
+    try:
+        # Load base image for this room image
+        room_image = await load_room_image(request.room_image_id, db)
+        image = await get_image_from_url(room_image.image_url)
+
+        # Build or obtain mask
+        mask_img: Image.Image
+        if (request.mode or "").lower() == "polygon":
+            width, height = image.size
+            pts: List[Tuple[int, int]] = []
+            if request.points_normalized:
+                for x, y in request.points_normalized:
+                    x = max(0.0, min(1.0, float(x)))
+                    y = max(0.0, min(1.0, float(y)))
+                    pts.append((int(round(x * width)), int(round(y * height))))
+            elif request.points:
+                for x, y in request.points:
+                    pts.append((int(x), int(y)))
+            else:
+                raise HTTPException(status_code=400, detail="polygon requires 'points' or 'points_normalized'")
+            if len(pts) < 3:
+                raise HTTPException(status_code=400, detail="polygon needs >= 3 points")
+
+            mask_img = Image.new("L", (width, height), 0)
+            draw = ImageDraw.Draw(mask_img)
+            draw.polygon(pts, outline=255, fill=255)
+        elif (request.mode or "").lower() == "segment":
+            if not request.segment_class:
+                raise HTTPException(status_code=400, detail="segment_class required for segment mode")
+            svc = DesignTransformationService()
+            masks = await svc.gemini.segment_image(
+                reference_image=image,
+                segment_class=request.segment_class,
+                points=None,
+                num_masks=1,
+            )
+            if not masks:
+                raise HTTPException(status_code=424, detail="segmentation produced no mask")
+            mask_img = masks[0]
+        else:
+            raise HTTPException(status_code=400, detail="mode must be 'polygon' or 'segment'")
+
+        # Create transformation record
+        transformation = await storage_service.create_transformation(
+            db=db,
+            room_image_id=request.room_image_id,
+            transformation_type=TransformationType.MULTI,
+            parameters={
+                "mode": request.mode,
+                "operation": request.operation,
+                "segment_class": request.segment_class,
+                "points_len": len(request.points or request.points_normalized or []),
+                "source": "precise_edit",
+            },
+            num_variations=request.num_variations,
+        )
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.PROCESSING,
+        )
+
+        # Perform masked edit
+        svc = DesignTransformationService()
+        images = await svc.transform_masked_edit(
+            image=image,
+            mask_image=mask_img,
+            operation=request.operation,
+            replacement_prompt=request.replacement_prompt,
+            num_variations=request.num_variations,
+        )
+
+        # Persist results
+        transformation_images = await storage_service.save_transformation_images(
+            db=db,
+            transformation_id=transformation.id,
+            images=images,
+        )
+
+        processing_time = int(time.time() - start_time)
+        await storage_service.update_transformation_status(
+            db=db,
+            transformation_id=transformation.id,
+            status=TransformationStatus.COMPLETED,
+            processing_time_seconds=processing_time,
+        )
+
+        return TransformationResponse(
+            success=True,
+            message=f"Generated {len(images)} precise edit variations",
+            transformation_id=transformation.id,
+            num_variations=len(images),
+            transformation_type="multi",
+            original_image_id=request.room_image_id,
+            status="completed",
+            image_urls=[img.image_url for img in transformation_images],
+        )
+    except Exception as e:
+        logger.error(f"precise_edit failed: {e}", exc_info=True)
+        if 'transformation' in locals():
+            await storage_service.update_transformation_status(
+                db=db,
+                transformation_id=transformation.id,
+                status=TransformationStatus.FAILED,
+                error_message=str(e),
+            )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/transform-backsplash", response_model=TransformationResponse)
 async def transform_backsplash(
@@ -2022,7 +2163,13 @@ async def analyze_uploaded_image(
                 ideas.extend(["Warm neutral palette", "Add matte-black pendant lights"])
             ideas = ideas[:max_ideas]
 
-        return AnalyzeImageResponse(summary=summary or {}, ideas=ideas, ideas_by_theme=ideas_by_theme or {})
+        # Suggested style transformations (Gemini text)
+        try:
+            style_transformations = await service.gemini.generate_style_transformations(summary=summary or {}, room_hint=None, max_items=4)
+        except Exception:
+            style_transformations = []
+
+        return AnalyzeImageResponse(summary=summary or {}, ideas=ideas, ideas_by_theme=ideas_by_theme or {}, style_transformations=style_transformations)
     except HTTPException:
         raise
     except Exception as e:
@@ -2105,7 +2252,13 @@ async def analyze_image(
             add_idea("Add matte-black pendant lights")
             ideas = ideas[:max_ideas]
 
-        return AnalyzeImageResponse(summary=summary or {}, ideas=ideas, ideas_by_theme=ideas_by_theme or {})
+        # Suggested style transformations (Gemini text)
+        try:
+            style_transformations = await service.gemini.generate_style_transformations(summary=summary or {}, room_hint=room_hint, max_items=4)
+        except Exception:
+            style_transformations = []
+
+        return AnalyzeImageResponse(summary=summary or {}, ideas=ideas, ideas_by_theme=ideas_by_theme or {}, style_transformations=style_transformations)
     except Exception as e:
         logger.warning(f"analyze_image failed: {e}", exc_info=True)
         # Degrade gracefully with empty ideas so the UI still renders

@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { designAPI } from '@/lib/api/design';
 import { homesAPI } from '@/lib/api/homes';
 
+import { useSearchParams } from 'next/navigation';
+
 
 export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { homeId?: string; useDigitalTwin?: boolean; }) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -22,6 +24,23 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
 
   const [groundingUnavailable, setGroundingUnavailable] = useState<boolean>(false);
   const [groundingNotice, setGroundingNotice] = useState<string | undefined>(undefined);
+  // Preload from querystring (image or image_url) when arriving from chat
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    try {
+      const imgUrl = searchParams.get('image_url');
+      const imgId = searchParams.get('image');
+      if (imgUrl) {
+        setSelectedImage(imgUrl);
+        setSelectedRoomImageId(null);
+      }
+      if (imgId) {
+        setSelectedRoomImageId(imgId);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
 
 
   const [selectedVariationIndex, setSelectedVariationIndex] = useState<number>(0);
@@ -80,8 +99,9 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
 
   const [ideas, setIdeas] = useState<string[]>([]);
   const [ideasByTheme, setIdeasByTheme] = useState<Record<string, string[]>>({});
+  const [styleTransformations, setStyleTransformations] = useState<Array<{ label: string; prompt: string }>>([]);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const analysisCacheRef = useRef<Record<string, { summary: any; ideas: string[]; ideasByTheme?: Record<string, string[]> }>>({});
+  const analysisCacheRef = useRef<Record<string, { summary: any; ideas: string[]; ideasByTheme?: Record<string, string[]>; styleTransformations?: Array<{ label: string; prompt: string }> }>>({});
 
   // Auto-analyze selected Digital Twin image to personalize idea chips (with simple cache)
   useEffect(() => {
@@ -100,6 +120,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
         setSummary(cached.summary || null);
         setIdeas(cached.ideas || []);
         setIdeasByTheme(cached.ideasByTheme || {});
+        setStyleTransformations(cached.styleTransformations || []);
         return;
       }
 
@@ -113,10 +134,12 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
             Object.entries(resp.ideas_by_theme ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v : []])
           );
           setIdeasByTheme(normalizedThemes);
+          setStyleTransformations(resp.style_transformations || []);
           analysisCacheRef.current[selectedRoomImageId] = {
             summary: resp.summary || null,
             ideas: resp.ideas || [],
             ideasByTheme: normalizedThemes,
+            styleTransformations: resp.style_transformations || [],
           };
         }
       } catch (e) {
@@ -149,6 +172,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
           Object.entries(resp.ideas_by_theme ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v : []])
         );
         setIdeasByTheme(normalizedThemes);
+        setStyleTransformations(resp.style_transformations || []);
       } catch (e) {
         if (!cancelled) {
           setIdeas([]);
@@ -161,6 +185,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
     run();
     return () => { cancelled = true; };
   }, [selectedImage, selectedRoomImageId]);
+
 
 
   // Fetch user's transformations
@@ -184,6 +209,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
       .map((img: any) => ({ url: img.image_url as string, roomName: r?.name as string, id: img?.id as string }))
     );
     return images as Array<{ url: string; roomName?: string; id?: string }>;
+
   }, [useDigitalTwin, selectedHome]);
   const [roomFilter, setRoomFilter] = useState<string>('all');
   const [page, setPage] = useState<number>(1);
@@ -195,7 +221,9 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
       const key = img.roomName || 'Unknown';
       map.set(key, (map.get(key) ?? 0) + 1);
     }
+
     return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+
   }, [dbImages]);
 
   const filteredImages = useMemo(() => {
@@ -207,6 +235,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
   const pagedImages = useMemo(() => {
     const start = (page - 1) * pageSize;
     return filteredImages.slice(start, start + pageSize);
+
   }, [filteredImages, page]);
 
 
@@ -219,6 +248,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
         setSelectedRoomImageId(null); // uploads not yet supported by backend transformations
         setResultUrls([]);
       };
+
       reader.readAsDataURL(file);
     }
   };
@@ -306,11 +336,31 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
                   <img
                     src={selectedImage}
                     alt="Original room"
+
                     className="w-full h-full object-cover"
                   />
                 </div>
                 {/* Chat-style composer below the image */}
                 <div className="space-y-3">
+                  {styleTransformations.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] text-gray-500 w-16">Styles</span>
+                        {styleTransformations.map((st) => (
+                          <button
+                            key={`style-${st.label}`}
+                            type="button"
+                            className="text-xs px-3 py-1.5 rounded-full border bg-amber-50 hover:bg-amber-100"
+                            onClick={() => setCustomPrompt(st.prompt)}
+                            title={st.prompt}
+                          >
+                            {st.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {Object.values(ideasByTheme || {}).some((arr) => (arr?.length ?? 0) > 0) ? (
                     <div className="space-y-2">
                       {['color','flooring','lighting','decor','other'].map((cat) => {
@@ -329,6 +379,7 @@ export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { h
                               >
                                 {idea}
                               </button>
+
                             ))}
                           </div>
                         );

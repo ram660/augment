@@ -94,21 +94,39 @@ class InMemoryCache:
 class CacheService:
     """
     Caching service with Redis and in-memory fallback.
-    
+
     Automatically falls back to in-memory cache if Redis is not available.
     """
-    
+
+    # Default TTLs by cache type (seconds)
+    DEFAULT_TTLS = {
+        "rag_query": 300,           # 5 minutes
+        "vision_analysis": 3600,    # 1 hour
+        "product_search": 900,      # 15 minutes
+        "contractor_search": 3600,  # 1 hour
+        "youtube_search": 3600,     # 1 hour
+        "design_analysis": 3600,    # 1 hour
+        "embeddings": 86400,        # 24 hours
+        "default": 300,             # 5 minutes
+    }
+
     def __init__(self, redis_url: Optional[str] = None):
         """
         Initialize cache service.
-        
+
         Args:
             redis_url: Redis connection URL (optional)
         """
         self.redis_client = None
         self.memory_cache = InMemoryCache()
         self.use_redis = False
-        
+
+        # Metrics
+        self.hits = 0
+        self.misses = 0
+        self.sets = 0
+        self.deletes = 0
+
         if redis_url:
             try:
                 import redis
@@ -125,10 +143,10 @@ class CacheService:
     def get(self, key: str) -> Optional[Any]:
         """
         Get value from cache.
-        
+
         Args:
             key: Cache key
-            
+
         Returns:
             Cached value or None
         """
@@ -136,18 +154,31 @@ class CacheService:
             if self.use_redis and self.redis_client:
                 value = self.redis_client.get(key)
                 if value:
+                    self.hits += 1
+                    logger.debug(f"Cache HIT (Redis): {key}")
                     return json.loads(value)
-                return None
+                else:
+                    self.misses += 1
+                    logger.debug(f"Cache MISS (Redis): {key}")
+                    return None
             else:
-                return self.memory_cache.get(key)
+                value = self.memory_cache.get(key)
+                if value is not None:
+                    self.hits += 1
+                    logger.debug(f"Cache HIT (memory): {key}")
+                else:
+                    self.misses += 1
+                    logger.debug(f"Cache MISS (memory): {key}")
+                return value
         except Exception as e:
             logger.error(f"Cache get error: {e}")
+            self.misses += 1
             return None
     
     def set(self, key: str, value: Any, ttl: int = 300):
         """
         Set value in cache.
-        
+
         Args:
             key: Cache key
             value: Value to cache
@@ -158,13 +189,16 @@ class CacheService:
                 self.redis_client.setex(key, ttl, json.dumps(value))
             else:
                 self.memory_cache.set(key, value, ttl)
+
+            self.sets += 1
+            logger.debug(f"Cache SET: {key} (TTL: {ttl}s)")
         except Exception as e:
             logger.error(f"Cache set error: {e}")
     
     def delete(self, key: str):
         """
         Delete value from cache.
-        
+
         Args:
             key: Cache key
         """
@@ -173,6 +207,9 @@ class CacheService:
                 self.redis_client.delete(key)
             else:
                 self.memory_cache.delete(key)
+
+            self.deletes += 1
+            logger.debug(f"Cache DELETE: {key}")
         except Exception as e:
             logger.error(f"Cache delete error: {e}")
     
@@ -208,22 +245,89 @@ class CacheService:
     def get_or_set(self, key: str, factory, ttl: int = 300) -> Any:
         """
         Get value from cache or compute and cache it.
-        
+
         Args:
             key: Cache key
             factory: Function to compute value if not cached
             ttl: Time to live in seconds
-            
+
         Returns:
             Cached or computed value
         """
         value = self.get(key)
         if value is not None:
             return value
-        
+
         value = factory()
         self.set(key, value, ttl)
         return value
+
+    def get_ttl_for_type(self, cache_type: str) -> int:
+        """
+        Get TTL for a specific cache type.
+
+        Args:
+            cache_type: Type of cache (rag_query, vision_analysis, etc.)
+
+        Returns:
+            TTL in seconds
+        """
+        return self.DEFAULT_TTLS.get(cache_type, self.DEFAULT_TTLS["default"])
+
+    def invalidate_pattern(self, pattern: str):
+        """
+        Invalidate all keys matching pattern.
+
+        Args:
+            pattern: Pattern to match (e.g., "rag_query:*")
+        """
+        try:
+            if self.use_redis and self.redis_client:
+                keys = self.redis_client.keys(pattern)
+                if keys:
+                    self.redis_client.delete(*keys)
+                    logger.info(f"Invalidated {len(keys)} Redis keys matching: {pattern}")
+
+            # For memory cache, we'd need to iterate (not efficient, but works)
+            # This is a limitation of the simple in-memory implementation
+            logger.warning("Pattern invalidation not fully supported for in-memory cache")
+
+        except Exception as e:
+            logger.error(f"Error invalidating pattern: {e}")
+
+    def get_stats(self) -> dict:
+        """
+        Get cache statistics.
+
+        Returns:
+            Dictionary with cache stats
+        """
+        total_requests = self.hits + self.misses
+        hit_rate = (self.hits / total_requests * 100) if total_requests > 0 else 0
+
+        redis_info = {}
+        if self.use_redis and self.redis_client:
+            try:
+                info = self.redis_client.info("stats")
+                redis_info = {
+                    "connected": True,
+                    "total_keys": self.redis_client.dbsize(),
+                    "used_memory": info.get("used_memory_human", "N/A"),
+                }
+            except Exception:
+                redis_info = {"connected": False}
+
+        return {
+            "backend": "redis" if self.use_redis else "memory",
+            "hits": self.hits,
+            "misses": self.misses,
+            "sets": self.sets,
+            "deletes": self.deletes,
+            "total_requests": total_requests,
+            "hit_rate_percent": round(hit_rate, 2),
+            "memory_cache_size": len(self.memory_cache._cache),
+            "redis": redis_info
+        }
 
 
 # Global cache instance

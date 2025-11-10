@@ -18,7 +18,7 @@ from PIL import Image
 import json
 
 from backend.agents.base import BaseAgent, AgentConfig, AgentRole, AgentResponse
-from backend.integrations.gemini import GeminiClient
+from backend.services.vision_service import UnifiedVisionService
 
 logger = logging.getLogger(__name__)
 
@@ -128,25 +128,25 @@ Include:
 
 Provide detailed JSON output with all relevant information."""
 
-    def __init__(self, gemini_client: Optional[GeminiClient] = None):
+    def __init__(self, vision_service: Optional[UnifiedVisionService] = None):
         """
         Initialize Vision Analysis Agent.
-        
+
         Args:
-            gemini_client: Optional Gemini client
+            vision_service: Optional UnifiedVisionService instance
         """
         config = AgentConfig(
             name="vision_analysis_agent",
             role=AgentRole.VISION,
-            description="Image analysis and understanding using Gemini Vision",
-            model_name="gemini-2.0-flash",  # Use gemini-2.0-flash for vision analysis
+            description="Image analysis and understanding using Gemini/DeepSeek Vision",
+            model_name="gemini-2.0-flash",  # Logical default; actual provider chosen by UnifiedVisionService
             temperature=0.3,  # Lower temperature for factual analysis
             enable_memory=False  # Vision analysis is stateless
         )
         super().__init__(config)
-        
-        self.gemini = gemini_client or GeminiClient()
-    
+
+        self.vision = vision_service or UnifiedVisionService()
+
     async def process(self, input_data: Dict[str, Any]) -> AgentResponse:
         """
         Process image and return analysis.
@@ -184,15 +184,16 @@ Provide detailed JSON output with all relevant information."""
             prompt = self._get_prompt(analysis_type, additional_context)
             
             # Analyze image
-            analysis_text = await self.gemini.analyze_image(
+            analysis_text = await self.vision.analyze_image(
                 image=image,
                 prompt=prompt,
                 temperature=0.3
             )
-            
+            vs_meta = self.vision.last_metadata or {}
+
             # Parse JSON response
             analysis_data = self._parse_analysis(analysis_text)
-            
+
             return AgentResponse(
                 agent_name=self.name,
                 agent_role=self.role,
@@ -203,10 +204,13 @@ Provide detailed JSON output with all relevant information."""
                     "raw_response": analysis_text
                 },
                 metadata={
-                    "model": self.config.model_name
+                    "model": self.config.model_name,
+                    "model_provider": vs_meta.get("provider", "gemini"),
+                    "model_processing_time_ms": vs_meta.get("processing_time_ms"),
+                    "fallback_reason": vs_meta.get("fallback_reason"),
                 }
             )
-            
+
         except Exception as e:
             logger.error(f"Error in vision analysis: {str(e)}", exc_info=True)
             return AgentResponse(

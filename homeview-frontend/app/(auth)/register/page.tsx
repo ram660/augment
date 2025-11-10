@@ -39,12 +39,12 @@ const userTypeConfig = {
 export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const setUser = useAuthStore((state) => state.setUser);
-  
+  const setAuth = useAuthStore((state) => state.setAuth);
+
   const typeParam = searchParams.get('type') || 'homeowner';
   const userTypeKey = typeParam === 'diy' ? 'diy' : typeParam === 'contractor' ? 'contractor' : 'homeowner';
   const userTypeValue: UserType = typeParam === 'diy' ? 'DIY_WORKER' : typeParam === 'contractor' ? 'CONTRACTOR' : 'HOMEOWNER';
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -79,7 +79,7 @@ export default function RegisterPage() {
     try {
       const { confirmPassword, ...registerData } = formData;
       const response = await authAPI.register(registerData);
-      setUser(response.user);
+      setAuth(response.user, response.access_token, response.refresh_token);
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Registration error:', err);

@@ -1,0 +1,145 @@
+template_id: bathroom_renovation
+name: Bathroom Renovation
+description: Complete bathroom renovation journey template
+template_type: scenario
+version: "1.0.0"
+tags:
+  - scenario
+  - bathroom
+  - renovation
+author: HomeView AI
+
+content:
+  display_name: Bathroom Renovation
+  
+  steps:
+    - step_id: assessment
+      name: Assessment & Planning
+      description: Evaluate current bathroom and define renovation scope
+      required_data:
+        - current_layout
+        - budget
+        - style_preference
+        - must_haves
+      suggested_actions:
+        - upload_photos
+        - visualize_design
+        - get_cost_estimate
+      estimated_duration: 1-2 weeks
+      
+    - step_id: design
+      name: Design & Material Selection
+      description: Finalize design and select fixtures, tiles, and materials
+      required_data:
+        - design_approved
+        - fixture_selections
+        - tile_selections
+      suggested_actions:
+        - browse_products
+        - create_mood_board
+        - get_product_recommendations
+      estimated_duration: 2-3 weeks
+      
+    - step_id: contractor_selection
+      name: Find & Hire Contractor
+      description: Get quotes and select qualified contractor
+      required_data:
+        - project_scope
+        - timeline
+        - budget_confirmed
+      suggested_actions:
+        - create_contractor_brief
+        - find_contractors
+        - compare_quotes
+      estimated_duration: 1-2 weeks
+      
+    - step_id: permits
+      name: Permits & Approvals
+      description: Obtain necessary permits (plumbing, electrical)
+      required_data:
+        - contractor_selected
+        - permit_requirements
+      suggested_actions:
+        - check_permit_requirements
+        - submit_permit_applications
+      estimated_duration: 1-3 weeks
+      safety_warnings:
+        - Plumbing work may require licensed plumber
+        - Electrical work requires licensed electrician
+        - Building permits typically required for major renovations
+      
+    - step_id: demolition
+      name: Demolition
+      description: Remove old fixtures, tiles, and prepare space
+      required_data:
+        - permits_approved
+        - start_date
+      estimated_duration: 1-3 days
+      safety_warnings:
+        - Check for asbestos in older homes (pre-1980)
+        - Proper ventilation required
+        - Dust containment essential
+      
+    - step_id: rough_in
+      name: Rough-In (Plumbing & Electrical)
+      description: Install new plumbing and electrical infrastructure
+      required_data:
+        - demolition_complete
+      estimated_duration: 3-5 days
+      safety_warnings:
+        - Licensed professionals required
+        - Inspections typically required
+      
+    - step_id: installation
+      name: Installation & Finishing
+      description: Install fixtures, tiles, vanity, and complete finishes
+      required_data:
+        - rough_in_inspected
+        - materials_delivered
+      estimated_duration: 1-2 weeks
+      
+    - step_id: final_inspection
+      name: Final Inspection & Completion
+      description: Final inspection, punch list, and project closeout
+      required_data:
+        - installation_complete
+      suggested_actions:
+        - schedule_final_inspection
+        - create_punch_list
+        - document_completion
+      estimated_duration: 1-3 days
+  
+  estimated_total_duration: 6-12 weeks
+  typical_budget_range: $10,000-$30,000
+  
+  budget_breakdown:
+    materials: 40%
+    labor: 45%
+    permits: 5%
+    contingency: 10%
+  
+  common_challenges:
+    - Unexpected plumbing issues
+    - Structural surprises behind walls
+    - Material delivery delays
+    - Permit approval delays
+  
+  tips:
+    - Order materials 2-3 weeks in advance
+    - Plan for 10-15% budget contingency
+    - Consider ventilation requirements
+    - Waterproofing is critical
+    - Plan for alternative bathroom during renovation
+  
+  required_permits:
+    - Building permit (major renovations)
+    - Plumbing permit
+    - Electrical permit (if rewiring)
+  
+  typical_roi: 60-70%
+  
+  related_templates:
+    - kitchen_renovation
+    - diy_project
+    - contractor_quotes
+

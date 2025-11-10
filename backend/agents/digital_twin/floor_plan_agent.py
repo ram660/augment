@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from backend.agents.base import BaseAgent, AgentConfig, AgentRole, AgentResponse
-from backend.integrations.gemini import GeminiClient
+from backend.services.vision_service import UnifiedVisionService
 from backend.utils.floor_type_normalizer import normalize_floor_type, floor_level_from_type
 from backend.utils.room_type_normalizer import normalize_room_type
 
@@ -33,7 +33,7 @@ class FloorPlanAnalysisAgent(BaseAgent):
             enable_memory=False  # Floor plan analysis is stateless
         )
         super().__init__(config)
-        self.gemini_client = GeminiClient()
+        self.vision = UnifiedVisionService()
 
     async def process(self, input_data: Dict[str, Any]) -> AgentResponse:
         """
@@ -71,7 +71,7 @@ class FloorPlanAnalysisAgent(BaseAgent):
             logger.info(f"Analyzing floor plan: {image_path}")
             start_time = datetime.utcnow()
 
-            analysis_result = await self.gemini_client.analyze_image(
+            analysis_result = await self.vision.analyze_floor_plan(
                 image=image_path,
                 prompt=prompt,
                 temperature=0.3
@@ -82,13 +82,17 @@ class FloorPlanAnalysisAgent(BaseAgent):
             # Parse the AI response
             parsed_data = self._parse_analysis_response(analysis_result, analysis_depth)
 
-            # Add metadata
+            # Add metadata (include provider/cost/confidence if available)
+            vs_meta = self.vision.last_metadata or {}
             parsed_data["metadata"] = {
                 "scale": scale,
                 "floor_level": floor_level,
                 "analysis_depth": analysis_depth,
-                "model_used": "gemini-2.5-flash",
+                "model_provider": vs_meta.get("provider", "gemini"),
+                "model_used": "deepseek-vl2" if (vs_meta.get("provider") == "deepseek") else "gemini-2.5-flash",
+                "model_processing_time_ms": vs_meta.get("processing_time_ms", processing_time),
                 "processing_time_ms": processing_time,
+                "fallback_reason": vs_meta.get("fallback_reason"),
                 "analyzed_at": datetime.utcnow().isoformat()
             }
 

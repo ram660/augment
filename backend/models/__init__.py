@@ -58,6 +58,13 @@ from backend.models.product import (
     ProductCategory,
     DimensionUnit,
 )
+from backend.models.journey import (
+    Journey,
+    JourneyStep,
+    JourneyImage,
+    JourneyStatus,
+    StepStatus,
+)
 
 __all__ = [
     "Base",
@@ -104,6 +111,11 @@ __all__ = [
     "DesignHistory",
     "ProductCatalog",
     "ProductMatch",
+    "Journey",
+    "JourneyStep",
+    "JourneyImage",
+    "JourneyStatus",
+    "StepStatus",
     "ProductReview",
     "ProductCollection",
     "ProductCategory",
