@@ -14,10 +14,11 @@ load_dotenv()
 
 # Database URLs
 # Railway provides DATABASE_URL automatically for PostgreSQL
-# Use SQLite for local development if DATABASE_URL is not set
+# Use SQLite for local development if DATABASE_URL is not set or is SQLite
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if DATABASE_URL:
+# Check if we should use SQLite or PostgreSQL
+if DATABASE_URL and (DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith("postgresql://")):
     # Production: Use PostgreSQL (Railway provides this)
     USE_SQLITE = False
     JSONType = JSONB
@@ -32,26 +33,44 @@ else:
     # Development: Use SQLite
     USE_SQLITE = True
     JSONType = JSON
-    DATABASE_URL = "sqlite:///./homevision.db"
-    DATABASE_URL_ASYNC = "sqlite+aiosqlite:///./homevision.db"
+
+    # Use SQLite URL from env or default
+    if not DATABASE_URL or DATABASE_URL.startswith("sqlite"):
+        DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./homevision.db")
+
+    # Use absolute path for async SQLite to avoid issues
+    import pathlib
+    db_path = pathlib.Path("./homevision.db").absolute()
+    DATABASE_URL_ASYNC = os.getenv("DATABASE_URL_ASYNC", f"sqlite+aiosqlite:///{db_path}")
 
 # Create engines
 if USE_SQLITE:
     engine = create_engine(DATABASE_URL, echo=True, connect_args={"check_same_thread": False})
-    async_engine = create_async_engine(DATABASE_URL_ASYNC, echo=True, connect_args={"check_same_thread": False})
+    # For SQLite async, we need to ensure aiosqlite is available
+    try:
+        import aiosqlite
+        async_engine = create_async_engine(DATABASE_URL_ASYNC, echo=True, connect_args={"check_same_thread": False})
+    except ImportError:
+        print("Warning: aiosqlite not installed. Async operations will not be available.")
+        async_engine = None
 else:
     engine = create_engine(DATABASE_URL, echo=True, pool_pre_ping=True)
     async_engine = create_async_engine(DATABASE_URL_ASYNC, echo=True, pool_pre_ping=True)
 
 # Create session factories
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-AsyncSessionLocal = async_sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
-)
+
+# Only create async session factory if async_engine is available
+if async_engine is not None:
+    AsyncSessionLocal = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False
+    )
+else:
+    AsyncSessionLocal = None
 
 # Base class for all models
 Base = declarative_base()

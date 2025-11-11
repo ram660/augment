@@ -1,9 +1,6 @@
 import React from 'react'
-import { useHomes } from '../../hooks/useHomes'
 
-function Header({ selectedHomeId, onHomeChange }) {
-  const { homes, isLoading } = useHomes()
-
+function Header({ selectedHomeId, onHomeChange, homes }) {
   return (
     <div className="header">
       <div className="header-left">
@@ -13,24 +10,19 @@ function Header({ selectedHomeId, onHomeChange }) {
       </div>
 
       <div className="header-right">
-        <select
-          className="home-selector"
-          value={selectedHomeId}
-          onChange={(e) => onHomeChange(e.target.value)}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <option>Loading homes...</option>
-          ) : homes.length === 0 ? (
-            <option>No homes found</option>
-          ) : (
-            homes.map(home => (
+        {homes && homes.length > 0 && (
+          <select
+            className="home-selector"
+            value={selectedHomeId || ''}
+            onChange={(e) => onHomeChange(e.target.value)}
+          >
+            {homes.map(home => (
               <option key={home.id} value={home.id}>
                 {home.name || home.address || `Home ${home.id.slice(0, 8)}`}
               </option>
-            ))
-          )}
-        </select>
+            ))}
+          </select>
+        )}
 
         <button className="header-btn" title="Settings">
           ⚙️ Settings

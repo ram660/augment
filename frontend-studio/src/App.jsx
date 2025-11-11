@@ -62,38 +62,6 @@ function App() {
     )
   }
 
-  // Show message if no homes found
-  if (!homesLoading && homes.length === 0) {
-    return (
-      <div className="app">
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          flexDirection: 'column',
-          gap: '20px',
-          padding: '40px'
-        }}>
-          <div style={{ fontSize: '4rem' }}>🏗️</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 600, color: '#667eea' }}>
-            No Homes Found
-          </div>
-          <div style={{ fontSize: '1rem', color: '#6b7280', textAlign: 'center', maxWidth: '500px' }}>
-            Please create a home first using the data import script or the API.
-          </div>
-          <button
-            className="header-btn"
-            style={{ marginTop: '20px', padding: '12px 24px' }}
-            onClick={() => window.location.href = '/'}
-          >
-            Go to Main Interface
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   // Render active page
   const renderPage = () => {
     try {
@@ -127,6 +95,7 @@ function App() {
       <Header
         selectedHomeId={selectedHomeId}
         onHomeChange={setSelectedHomeId}
+        homes={homes}
       />
 
       <TabNavigation

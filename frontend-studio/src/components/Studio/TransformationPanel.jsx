@@ -1,9 +1,52 @@
 import React, { useState } from 'react';
 import './TransformationPanel.css';
 
+// Organized transformation categories for better UX
+const TRANSFORMATION_CATEGORIES = {
+  surfaces: {
+    label: '🎨 Surfaces',
+    icon: '🎨',
+    description: 'Transform walls, floors, and surfaces',
+    tools: ['paint', 'flooring', 'wallpaper', 'accent_wall']
+  },
+  kitchen: {
+    label: '🍳 Kitchen & Bath',
+    icon: '🍳',
+    description: 'Kitchen and bathroom transformations',
+    tools: ['cabinets', 'countertops', 'backsplash', 'fixtures', 'appliances']
+  },
+  furniture: {
+    label: '🛋️ Furniture & Decor',
+    icon: '🛋️',
+    description: 'Add, remove, or change furniture',
+    tools: ['virtual_staging', 'unstaging', 'furniture_swap', 'decor', 'window_treatments']
+  },
+  lighting: {
+    label: '💡 Lighting',
+    icon: '💡',
+    description: 'Transform lighting and ambiance',
+    tools: ['lighting_fixtures', 'natural_light', 'ambient_lighting', 'smart_lighting']
+  },
+  outdoor: {
+    label: '🌳 Outdoor & Exterior',
+    icon: '🌳',
+    description: 'Exterior and outdoor spaces',
+    tools: ['exterior_paint', 'landscaping', 'deck_patio', 'outdoor_furniture']
+  },
+  advanced: {
+    label: '⚡ Advanced',
+    icon: '⚡',
+    description: 'Precision tools and custom edits',
+    tools: ['precise_edit', 'custom_prompt', 'style_transfer', 'multi_room']
+  }
+};
+
 const TRANSFORMATION_TYPES = {
+  // SURFACES
   paint: {
-    label: '🎨 Paint',
+    label: '🎨 Paint Walls',
+    category: 'surfaces',
+    description: 'Change wall colors with any finish',
     fields: [
       { name: 'target_color', label: 'Color', type: 'color', placeholder: 'e.g., Soft Sage Green' },
       { name: 'target_finish', label: 'Finish', type: 'select', options: ['matte', 'eggshell', 'satin', 'semi-gloss', 'gloss'] },

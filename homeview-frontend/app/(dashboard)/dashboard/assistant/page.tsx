@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sparkles, Wand2, MessageSquare } from "lucide-react";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import DesignStudioPage from "../design/page";
@@ -9,13 +10,14 @@ import { useQuery } from "@tanstack/react-query";
 import { homesAPI } from "@/lib/api/homes";
 
 export default function AssistantPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"chat" | "transform">("chat");
   const [useDigitalTwin, setUseDigitalTwin] = useState<boolean>(true);
   const [selectedHomeId, setSelectedHomeId] = useState<string | undefined>(undefined);
 
   const { data: homes = [] } = useQuery({
     queryKey: ["homes"],
-    queryFn: homesAPI.getHomes,
+    queryFn: homesAPI.getAllHomes,
   });
 
   // Only show homes that are "Digital Twin ready" (have floor plan/images or non-zero completeness)
@@ -112,14 +114,14 @@ export default function AssistantPage() {
             disabled={(readyHomes || []).length === 0}
           >
             <option value="">{(readyHomes || []).length === 0 ? 'No ready homes' : 'Select a home…'}</option>
-            {(readyHomes || []).map((h) => (
+            {(readyHomes || []).map((h: any) => (
               <option key={h.id} value={h.id}>{h.name}</option>
             ))}
           </select>
         </div>
         {useDigitalTwin && selectedHomeId && (
           <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-            Using: {homes.find(h => h.id === selectedHomeId)?.name}
+            Using: {homes.find((h: any) => h.id === selectedHomeId)?.name}
           </span>
         )}
       </div>
@@ -167,7 +169,7 @@ export default function AssistantPage() {
               Tip: Use the Chat tab to describe what you want changed. Then switch here to generate visual transformations.
             </div>
             {/* Reuse the existing Design Studio page content inline */}
-            <DesignStudioPage homeId={useDigitalTwin ? selectedHomeId : undefined} useDigitalTwin={useDigitalTwin} />
+            <DesignStudioPage />
           </div>
         )}
       </div>

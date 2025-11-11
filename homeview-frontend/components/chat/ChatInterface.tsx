@@ -108,8 +108,8 @@ export function ChatInterface({ conversationId, homeId, persona = 'homeowner' }:
       return md.persona || md.scenario;
     })?.metadata as any | undefined;
 
-  const persistedPersona = (lastMeta?.persona as 'homeowner' | 'diy_worker' | 'contractor') | undefined;
-  const persistedScenario = (lastMeta?.scenario as 'contractor_quotes' | 'diy_project_plan') | undefined;
+  const persistedPersona = lastMeta?.persona as 'homeowner' | 'diy_worker' | 'contractor' | undefined;
+  const persistedScenario = lastMeta?.scenario as 'contractor_quotes' | 'diy_project_plan' | undefined;
   const headerPersona = persistedPersona ?? persona;
   const scenarioLabel =
     persistedScenario === 'contractor_quotes'

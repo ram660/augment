@@ -155,7 +155,7 @@ An AI-powered SaaS platform for homeowners, DIY workers, and contractors featuri
 
 # Configure CORS
 # Get allowed origins from environment variable or use defaults
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:8000").split(",")
 
 app.add_middleware(
     CORSMiddleware,

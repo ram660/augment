@@ -8,6 +8,9 @@ import { MessageFeedback, type FeedbackData } from './MessageFeedback';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Image from 'next/image';
+import VideoTutorialCard from './VideoTutorialCard';
+import DIYInstructionsCard from './DIYInstructionsCard';
+import BeforeAfterComparison from './BeforeAfterComparison';
 
 
 interface MessageBubbleProps {
@@ -190,7 +193,7 @@ export function MessageBubble({ message, onQuestionClick, onActionClick }: Messa
         {/* Metadata - Images */}
         {message.metadata?.images && message.metadata.images.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {message.metadata.images.map((imageUrl, index) => (
+            {message.metadata.images.map((imageUrl: any, index: number) => (
               <div key={index} className="w-32 h-32 rounded-lg overflow-hidden border border-gray-200">
                 <img
                   src={imageUrl}
@@ -206,8 +209,8 @@ export function MessageBubble({ message, onQuestionClick, onActionClick }: Messa
         {message.metadata?.attachments && message.metadata.attachments.length > 0 && (
           <div className="flex flex-col gap-2 w-full">
             {message.metadata.attachments
-              .filter((att) => att.type === 'pdf' || (att.content_type && att.content_type.includes('pdf')) || att.type === 'file')
-              .map((att, idx) => (
+              .filter((att: any) => att.type === 'pdf' || (att.content_type && att.content_type.includes('pdf')) || att.type === 'file')
+              .map((att: any, idx: number) => (
                 <a
                   key={idx}
                   href={att.url}
@@ -740,6 +743,34 @@ export function MessageBubble({ message, onQuestionClick, onActionClick }: Messa
           </div>
         )}
 
+        {/* Video Tutorial Analysis */}
+        {isAssistant && message.metadata?.video_analysis && (
+          <div className="mt-3 w-full">
+            <VideoTutorialCard
+              videoUrl={message.metadata.video_analysis.video_url}
+              analysis={message.metadata.video_analysis}
+            />
+          </div>
+        )}
+
+        {/* DIY Instructions */}
+        {isAssistant && message.metadata?.diy_instructions && (
+          <div className="mt-3 w-full">
+            <DIYInstructionsCard instructions={message.metadata.diy_instructions} />
+          </div>
+        )}
+
+        {/* Before/After Comparison */}
+        {isAssistant && message.metadata?.before_after && (
+          <div className="mt-3 w-full">
+            <BeforeAfterComparison
+              beforeImage={message.metadata.before_after.before_image}
+              afterImage={message.metadata.before_after.after_image}
+              analysis={message.metadata.before_after.analysis}
+            />
+          </div>
+        )}
+
         {/* Suggested Actions */}
         {isAssistant && message.metadata?.suggested_actions && message.metadata.suggested_actions.length > 0 && (
           <div className="flex flex-col gap-2 w-full mt-1">
@@ -762,7 +793,7 @@ export function MessageBubble({ message, onQuestionClick, onActionClick }: Messa
         {/* Suggested Follow-up Questions */}
         {isAssistant && message.metadata?.suggested_questions && message.metadata.suggested_questions.length > 0 && (
           <div className="flex flex-wrap gap-2 w-full mt-2">
-            {message.metadata.suggested_questions.map((question, idx) => (
+            {message.metadata.suggested_questions.map((question: any, idx: number) => (
               <button
                 key={idx}
                 onClick={() => onQuestionClick?.(question)}
@@ -785,12 +816,14 @@ export function MessageBubble({ message, onQuestionClick, onActionClick }: Messa
         )}
 
         {/* Timestamp */}
-        <p className="text-xs text-gray-500 px-2">
-          {new Date(message.created_at).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </p>
+        {message.created_at && (
+          <p className="text-xs text-gray-500 px-2">
+            {new Date(message.created_at).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        )}
       </div>
     </div>
   );

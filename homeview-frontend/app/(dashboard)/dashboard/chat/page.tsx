@@ -16,7 +16,7 @@ export default function ChatPage() {
   // Fetch conversations
   const { data: conversations = [] } = useQuery({
     queryKey: ['conversations'],
-    queryFn: chatAPI.getConversations,
+    queryFn: () => chatAPI.getConversations(),
   });
 
   return (

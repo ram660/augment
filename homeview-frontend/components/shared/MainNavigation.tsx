@@ -22,9 +22,9 @@ const mainTabs = [
     icon: MessageSquare,
     description: 'AI Project Assistant'
   },
-  { 
-    name: 'Design Studio', 
-    href: '/dashboard/studio', 
+  {
+    name: 'Design Studio',
+    href: '/dashboard/design',
     icon: Palette,
     description: 'Visual Editor'
   },

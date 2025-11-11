@@ -6,7 +6,7 @@ All transformations preserve unchanged elements while only modifying what the cu
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
@@ -22,6 +22,9 @@ from backend.models import RoomImage, Room, TransformationType, TransformationSt
 from backend.services.design_transformation_service import DesignTransformationService
 from backend.services.transformation_storage_service import TransformationStorageService
 import time
+import os
+import math
+
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +271,7 @@ class PromptedTransformResponse(BaseModel):
     sources: List[str] = []
     grounding_unavailable: bool = False
     grounding_notice: Optional[str] = None
+    follow_up_ideas: Dict[str, List[str]] = {}
 
 class UploadPromptedTransformRequest(BaseModel):
     """Request model for prompt-driven transformation from an uploaded image (no Digital Twin required)."""
@@ -288,6 +292,7 @@ class PromptedTransformUploadResponse(BaseModel):
     sources: List[str] = []
     grounding_unavailable: bool = False
     grounding_notice: Optional[str] = None
+    follow_up_ideas: Dict[str, List[str]] = {}
 
 
 
@@ -1260,6 +1265,12 @@ async def transform_prompted(
     start_time = time.time()
     storage_service = TransformationStorageService()
 
+    logger.info("[Transform MEDIA] Request: prompt_len=%s, num_variations=%s, enable_grounding=%s, room_image_id=%s",
+                len(getattr(request, "prompt", "") or ""),
+                getattr(request, "num_variations", None),
+                getattr(request, "enable_grounding", False),
+                str(getattr(request, "room_image_id", None)))
+
     try:
         # Load DB entities
         room_image = await load_room_image(request.room_image_id, db)
@@ -1379,6 +1390,161 @@ STRICT MODE (apply only if drift is high):
         except Exception as e:
             logger.warning(f"Original image analysis failed: {e}")
             original_summary = {}
+        # Attach image details (dimensions/MP/aspect) and spatial/material quantities; generate follow-up ideas
+        try:
+            def _ratio_str(_w: int, _h: int) -> str:
+                try:
+                    g = math.gcd(int(_w), int(_h)) if _w > 0 and _h > 0 else 1
+                    return f"{int(_w)//g}:{int(_h)//g}" if g else f"{_w}:{_h}"
+                except Exception:
+                    return "n/a"
+            _ow, _oh = (image.width, image.height)
+            _rw, _rh = (transformed_images[0].width, transformed_images[0].height) if transformed_images else (None, None)
+            summary = summary or {}
+            summary.setdefault("image_details", {})
+            summary["image_details"] = {
+                "original": {
+                    "width": _ow,
+                    "height": _oh,
+                    "megapixels": round((_ow * _oh) / 1_000_000, 2),
+                    "aspect_ratio": _ratio_str(_ow, _oh),
+                },
+                "result": {
+                    "width": _rw,
+                    "height": _rh,
+                    "megapixels": (round((_rw * _rh) / 1_000_000, 2) if (_rw and _rh) else None),
+                    "aspect_ratio": (_ratio_str(_rw, _rh) if (_rw and _rh) else None),
+                },
+            }
+        except Exception as e:
+            logger.warning(f"Failed to attach image_details (media): {e}")
+
+        try:
+            logger.info("[Analysis MEDIA] colors=%s materials=%s styles=%s",
+                        len((summary or {}).get("colors", [])),
+                        len((summary or {}).get("materials", [])),
+                        len((summary or {}).get("styles", [])))
+        except Exception:
+            pass
+
+        # Spatial analysis and material quantity estimation (best-effort)
+        try:
+            spatial_media = await service.gemini.analyze_spatial_and_quantities(first_img or image)
+            dims = (spatial_media or {}).get("dimensions") or {}
+            openings = (spatial_media or {}).get("openings") or {}
+            Lm = dims.get("length_m") or None
+            Wm = dims.get("width_m") or None
+            Hm = dims.get("height_m") or None
+
+            def _calc_numbers_med(Lm, Wm, Hm, openings):
+                out = {}
+                try:
+                    import math as _math
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm]):
+                        floor_m2 = max(0.0, float(Lm) * float(Wm))
+                        ceil_m2 = floor_m2
+                    else:
+                        floor_m2 = ceil_m2 = None
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm, Hm]):
+                        perimeter_m = 2.0 * (float(Lm) + float(Wm))
+                        walls_m2_raw = perimeter_m * float(Hm)
+                        windows = (openings.get("windows") if isinstance(openings, dict) else None)
+                        doors = (openings.get("doors") if isinstance(openings, dict) else None)
+                        openings_m2 = 0.0
+                        try:
+                            if isinstance(windows, int):
+                                openings_m2 += windows * 1.5
+                            if isinstance(doors, int):
+                                openings_m2 += doors * 1.9
+                        except Exception:
+                            pass
+                        walls_m2 = max(0.0, walls_m2_raw - openings_m2)
+                    else:
+                        walls_m2 = None
+
+                    coverage_m2_per_liter = 10.0
+                    coats = 2
+                    waste_pct = 0.10
+
+                    if floor_m2 is not None:
+                        flooring_m2_with_waste = floor_m2 * (1.0 + waste_pct)
+                        flooring_sqft = round(flooring_m2_with_waste * 10.7639, 1)
+                    else:
+                        flooring_m2_with_waste = None
+                        flooring_sqft = None
+
+                    if walls_m2 is not None:
+                        paint_liters = round((walls_m2 / coverage_m2_per_liter) * coats, 1)
+                        paint_gallons = round(paint_liters / 3.785, 2)
+                    else:
+                        paint_liters = None
+                        paint_gallons = None
+
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm]):
+                        baseboard_m = (2.0 * (float(Lm) + float(Wm))) * (1.0 + waste_pct)
+                        baseboard_ft = round(baseboard_m * 3.28084, 1)
+                    else:
+                        baseboard_m = None
+                        baseboard_ft = None
+
+                    if floor_m2 is not None:
+                        tile_m2 = floor_m2
+                        tile_area_m2 = 0.3 * 0.6
+                        tile_count = int(_math.ceil(tile_m2 / tile_area_m2))
+                    else:
+                        tile_count = None
+
+                    out = {
+                        "areas": {
+                            "floor_m2": (round(floor_m2, 2) if floor_m2 is not None else None),
+                            "walls_m2": (round(walls_m2, 2) if walls_m2 is not None else None),
+                            "ceiling_m2": (round(ceil_m2, 2) if ceil_m2 is not None else None),
+                        },
+                        "quantities": {
+                            "flooring_sqft": flooring_sqft,
+                            "flooring_m2": (round(flooring_m2_with_waste, 2) if flooring_m2_with_waste is not None else None),
+                            "paint_liters_two_coats": paint_liters,
+                            "paint_gallons_two_coats": paint_gallons,
+                            "baseboard_linear_ft": baseboard_ft,
+                            "tile_30x60cm_count": tile_count,
+                        },
+                        "assumptions": [
+                            "Paint coverage ~10 m2/liter/coat; 2 coats",
+                            "~10% waste added to flooring and trim",
+                            "Windows ~1.5 m2 each; doors ~1.9 m2 each (approx.)",
+                        ],
+                    }
+                except Exception:
+                    pass
+                return out
+
+            numbers_med = _calc_numbers_med(Lm, Wm, Hm, openings)
+            summary.setdefault("spatial_analysis", {})
+            summary["spatial_analysis"].update({
+                "dimensions_m": {"length_m": Lm, "width_m": Wm, "height_m": Hm},
+                "openings": openings,
+                "confidence": (spatial_media or {}).get("confidence"),
+                **numbers_med,
+            })
+            try:
+                logger.info("[Spatial MEDIA] LxWxH= %s x %s x %s m; floor= %s m2; walls= %s m2; paint (2 coats)= %s L",
+                            Lm, Wm, Hm,
+                            numbers_med.get("areas",{}).get("floor_m2"),
+                            numbers_med.get("areas",{}).get("walls_m2"),
+                            numbers_med.get("quantities",{}).get("paint_liters_two_coats") )
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning(f"Spatial analysis/quantities (media) failed: {e}")
+
+        # Follow-up idea suggestions
+        follow_up_ideas: Dict[str, List[str]] = {}
+        try:
+            room_hint = getattr(room, "name", None) if 'room' in locals() else None
+            follow_up_ideas = await service.gemini.generate_transformation_ideas(summary=summary or {}, room_hint=room_hint, max_ideas=6)
+        except Exception as e:
+            logger.warning(f"Follow-up idea generation (media) failed: {e}")
+
 
         # Optional: grounded product suggestions using requested changes + diffs
         products: List[Dict[str, Any]] = []
@@ -1463,6 +1629,7 @@ STRICT MODE (apply only if drift is high):
             sources=sources,
             grounding_unavailable=grounding_unavailable,
             grounding_notice=grounding_notice,
+            follow_up_ideas=follow_up_ideas,
         )
     except HTTPException:
         raise
@@ -1487,6 +1654,11 @@ async def transform_prompted_upload(
     - Optionally suggests products using Google Search grounding
     """
     try:
+        logger.info("[Transform UPLOAD] Request: prompt_len=%s, num_variations=%s, enable_grounding=%s",
+                    len(getattr(request, "prompt", "") or ""),
+                    getattr(request, "num_variations", None),
+                    getattr(request, "enable_grounding", False))
+
         # Decode the incoming image (supports data URL or raw base64)
         data = request.image_data_url.strip()
         try:
@@ -1494,8 +1666,28 @@ async def transform_prompted_upload(
             image_bytes = base64.b64decode(b64_part)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
-
         image = Image.open(io.BytesIO(image_bytes))
+        # Log original size prior to any pre-enhancement
+        try:
+            logger.info("[HD Pre-enhance UPLOAD] original=%sx%s short_side=%s", image.width, image.height, min(image.width, image.height))
+        except Exception:
+            pass
+
+        # Pre-enhance low-res uploads to ensure a clean HD baseline (optimized threshold)
+        try:
+            MIN_SHORT_SIDE = 720  # Reduced from 1080 for faster processing
+            if min(image.width, image.height) < MIN_SHORT_SIDE:
+                _svc_pre = DesignTransformationService()
+                # Only upscale if really needed
+                _enh = await _svc_pre.enhance_quality(image=image, upscale_2x=False)
+                image = _enh[0] if _enh else image
+        except Exception as e:
+            logger.warning(f"Pre-enhance (upload) skipped: {e}")
+
+        try:
+            logger.info("[HD Pre-enhance UPLOAD] working_size=%sx%s", image.width, image.height)
+        except Exception:
+            pass
 
         # Build combined instructions with preservation rules
         service = DesignTransformationService()
@@ -1527,7 +1719,9 @@ USER REQUEST:
             except Exception:
                 return 0.0
 
-        DRIFT_THRESHOLD = 0.18
+        # Drift guard disabled for speed optimization
+        # Users can regenerate if quality is not satisfactory
+        DRIFT_THRESHOLD = 0.25  # Increased threshold to reduce re-generations
         drift_scores = []
         try:
             drift_scores = [_compute_drift(image, img) for img in transformed_images]
@@ -1535,27 +1729,42 @@ USER REQUEST:
             drift_scores = []
 
         strict_regen_applied = False
-        if drift_scores and max(drift_scores) > DRIFT_THRESHOLD:
-            strict_block = """
-STRICT MODE (apply only if drift is high):
-- Make only the smallest necessary pixel-level change to fulfill the request.
-- Do NOT add or remove any objects; do NOT move anything; do NOT change lighting or perspective.
-- If any part is ambiguous, leave it unchanged.
-"""
-            strict_prompt = combined_prompt + "\n" + strict_block
-            try:
-                transformed_images = await service._generate_transformation(
-                    image=image,
-                    prompt=strict_prompt,
-                    num_variations=request.num_variations,
-                )
-                strict_regen_applied = True
-                try:
-                    drift_scores = [_compute_drift(image, img) for img in transformed_images]
-                except Exception:
-                    pass
-            except Exception as e:
-                logger.warning(f"Strict-mode regeneration (upload) failed: {e}")
+        # Skip strict regeneration for faster results (can be enabled if needed)
+        # if drift_scores and max(drift_scores) > DRIFT_THRESHOLD:
+        #     ... strict regeneration code ...
+
+
+        # Enforce HD-quality outputs (upscale if needed)
+        try:
+            MIN_SHORT_SIDE = 1080
+            _svc_hd = DesignTransformationService()
+            _hd_images: List[Image.Image] = []
+            for _img in transformed_images:
+                if min(_img.width, _img.height) < MIN_SHORT_SIDE:
+                    # Logging: we are about to upscale this variation to enforce HD
+                    try:
+                        logger.info("[HD Post-enforce UPLOAD] upscaling variation size=%sx%s", _img.width, _img.height)
+                    except Exception:
+                        pass
+
+                    try:
+                        _enhanced = await _svc_hd.enhance_quality(image=_img, upscale_2x=True)
+                        _hd_images.append(_enhanced[0] if _enhanced else _img)
+                        try:
+                            logger.info("[HD Post-enforce UPLOAD] result size=%sx%s",
+                                        (_enhanced[0].width if _enhanced else _img.width),
+                                        (_enhanced[0].height if _enhanced else _img.height))
+                        except Exception:
+                            pass
+
+                    except Exception as ie:
+                        logger.warning(f"HD enforce (upload) failed on a variation: {ie}")
+                        _hd_images.append(_img)
+                else:
+                    _hd_images.append(_img)
+            transformed_images = _hd_images
+        except Exception as e:
+            logger.warning(f"HD enforce (upload) skipped: {e}")
 
         # Prefer hosted URLs when storage is configured; else data URLs
         image_urls: List[str] = []
@@ -1607,6 +1816,14 @@ STRICT MODE (apply only if drift is high):
             logger.warning(f"Design analysis (upload) failed: {e}")
             summary = {}
 
+        try:
+            logger.info("[Analysis UPLOAD] colors=%s materials=%s styles=%s",
+                        len((summary or {}).get("colors", [])),
+                        len((summary or {}).get("materials", [])),
+                        len((summary or {}).get("styles", [])))
+        except Exception:
+            pass
+
         # Analyze original image for diff-aware grounding (best-effort)
         original_summary: Dict[str, Any] = {}
         try:
@@ -1618,6 +1835,157 @@ STRICT MODE (apply only if drift is high):
         # Optional: grounded product suggestions using requested changes + diffs
         products: List[Dict[str, Any]] = []
         sources: List[str] = []
+
+        # Attach helpful image dimensions to summary
+        try:
+            def _ratio_str(_w: int, _h: int) -> str:
+                try:
+                    g = math.gcd(int(_w), int(_h)) if _w > 0 and _h > 0 else 1
+                    return f"{int(_w)//g}:{int(_h)//g}" if g else f"{_w}:{_h}"
+                except Exception:
+                    return "n/a"
+            _ow, _oh = (image.width, image.height)
+            _rw, _rh = (transformed_images[0].width, transformed_images[0].height) if transformed_images else (None, None)
+            summary = summary or {}
+            summary["image_details"] = {
+                "original": {
+                    "width": _ow,
+                    "height": _oh,
+                    "megapixels": round((_ow * _oh) / 1_000_000, 2),
+                    "aspect_ratio": _ratio_str(_ow, _oh),
+                },
+                "result": {
+                    "width": _rw,
+                    "height": _rh,
+                    "megapixels": (round((_rw * _rh) / 1_000_000, 2) if (_rw and _rh) else None),
+                    "aspect_ratio": (_ratio_str(_rw, _rh) if (_rw and _rh) else None),
+                },
+            }
+        except Exception as e:
+            logger.warning(f"Failed to attach image_details: {e}")
+        # Spatial analysis and material quantity estimation (best-effort)
+        try:
+            spatial = await service.gemini.analyze_spatial_and_quantities(first_img or image)
+            dims = (spatial or {}).get("dimensions") or {}
+            openings = (spatial or {}).get("openings") or {}
+            Lm = dims.get("length_m") or None
+            Wm = dims.get("width_m") or None
+            Hm = dims.get("height_m") or None
+
+            def _calc_numbers(Lm, Wm, Hm, openings):
+                out = {}
+                try:
+                    import math as _math
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm]):
+                        floor_m2 = max(0.0, float(Lm) * float(Wm))
+                        ceil_m2 = floor_m2
+                    else:
+                        floor_m2 = ceil_m2 = None
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm, Hm]):
+                        perimeter_m = 2.0 * (float(Lm) + float(Wm))
+                        walls_m2_raw = perimeter_m * float(Hm)
+                        # Subtract estimated openings if counts available
+                        windows = (openings.get("windows") if isinstance(openings, dict) else None)
+                        doors = (openings.get("doors") if isinstance(openings, dict) else None)
+                        openings_m2 = 0.0
+                        try:
+                            if isinstance(windows, int):
+                                openings_m2 += windows * 1.5  # ~1.5 m2 per window
+                            if isinstance(doors, int):
+                                openings_m2 += doors * 1.9   # ~1.9 m2 per door
+                        except Exception:
+                            pass
+                        walls_m2 = max(0.0, walls_m2_raw - openings_m2)
+                    else:
+                        walls_m2 = None
+
+                    # Paint assumptions
+                    coverage_m2_per_liter = 10.0  # 1L covers ~10 m2 per coat
+                    coats = 2
+                    waste_pct = 0.10
+
+                    # Flooring and trim
+                    if floor_m2 is not None:
+                        flooring_m2_with_waste = floor_m2 * (1.0 + waste_pct)
+                        flooring_sqft = round(flooring_m2_with_waste * 10.7639, 1)
+                    else:
+                        flooring_m2_with_waste = None
+                        flooring_sqft = None
+
+                    if walls_m2 is not None:
+                        paint_liters = round((walls_m2 / coverage_m2_per_liter) * coats, 1)
+                        paint_gallons = round(paint_liters / 3.785, 2)
+                    else:
+                        paint_liters = None
+                        paint_gallons = None
+
+                    # Baseboard linear length (perimeter)
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm]):
+                        baseboard_m = (2.0 * (float(Lm) + float(Wm))) * (1.0 + waste_pct)
+                        baseboard_ft = round(baseboard_m * 3.28084, 1)
+                    else:
+                        baseboard_m = None
+                        baseboard_ft = None
+
+                    # Simple tile estimate (e.g., 30x60cm tile on floor)
+                    if floor_m2 is not None:
+                        tile_m2 = floor_m2
+                        tile_area_m2 = 0.3 * 0.6
+                        tile_count = int(_math.ceil(tile_m2 / tile_area_m2))
+                    else:
+                        tile_count = None
+
+                    out = {
+                        "areas": {
+                            "floor_m2": (round(floor_m2, 2) if floor_m2 is not None else None),
+                            "walls_m2": (round(walls_m2, 2) if walls_m2 is not None else None),
+                            "ceiling_m2": (round(ceil_m2, 2) if ceil_m2 is not None else None),
+                        },
+                        "quantities": {
+                            "flooring_sqft": flooring_sqft,
+                            "flooring_m2": (round(flooring_m2_with_waste, 2) if flooring_m2_with_waste is not None else None),
+                            "paint_liters_two_coats": paint_liters,
+                            "paint_gallons_two_coats": paint_gallons,
+                            "baseboard_linear_ft": baseboard_ft,
+                            "tile_30x60cm_count": tile_count,
+                        },
+                        "assumptions": [
+                            "Paint coverage ~10 m2/liter/coat; 2 coats",
+                            "~10% waste added to flooring and trim",
+                            "Windows ~1.5 m2 each; doors ~1.9 m2 each (approx.)",
+                        ],
+                    }
+                except Exception:
+                    pass
+                return out
+
+            numbers = _calc_numbers(Lm, Wm, Hm, openings)
+            summary.setdefault("spatial_analysis", {})
+            summary["spatial_analysis"].update({
+                "dimensions_m": {"length_m": Lm, "width_m": Wm, "height_m": Hm},
+                "openings": openings,
+                "confidence": (spatial or {}).get("confidence"),
+                **numbers,
+            })
+            try:
+                logger.info("[Spatial] LxWxH= %s x %s x %s m; floor= %s m2; walls= %s m2; paint (2 coats)= %s L",
+                            Lm, Wm, Hm,
+                            numbers.get("areas",{}).get("floor_m2"),
+                            numbers.get("areas",{}).get("walls_m2"),
+                            numbers.get("quantities",{}).get("paint_liters_two_coats") )
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning(f"Spatial analysis/quantities failed: {e}")
+
+        # Follow-up transformation suggestions
+        follow_up_ideas: Dict[str, List[str]] = {}
+        try:
+            follow_up_ideas = await service.gemini.generate_transformation_ideas(summary=summary or {}, room_hint=None, max_ideas=6)
+        except Exception as e:
+            logger.warning(f"Follow-up idea generation failed: {e}")
+
+
         grounding_unavailable: bool = False
         grounding_notice: Optional[str] = None
         # Google Search grounding per official docs: https://ai.google.dev/gemini-api/docs/google-search
@@ -1629,11 +1997,23 @@ STRICT MODE (apply only if drift is high):
                     "requested_changes": _extract_requested_changes(request.prompt),
                     "original_summary": original_summary,
                     "new_summary": summary,
-                    "location_hint": "Canada",
+                    "location_hint": os.getenv("DEFAULT_LOCATION_HINT", "Vancouver, BC, Canada"),
+
                 }
                 grounding = await service.gemini.suggest_products_with_grounding(grounding_input, max_items=5)
                 products = grounding.get("products", []) or []
                 sources = grounding.get("sources", []) or []
+                grounding_notice = grounding.get("grounding_notice") or grounding_notice
+                if not products:
+                    try:
+                        fallback2 = await service.gemini.suggest_products_without_grounding_function_calling(grounding_input, max_items=5)
+                        products = fallback2.get("products", []) or []
+                        sources = fallback2.get("sources", []) or []
+                        if not products:
+                            grounding_notice = grounding_notice or "No Canadian product pages were found via Google Search. Showing AI-suggested alternatives when available."
+                    except Exception as e3:
+                        logger.warning(f"Secondary fallback (no results, upload) failed: {e3}")
+
             except Exception as e:
                 logger.warning(f"Grounded suggestion (upload) failed: {e}")
                 # Fallback: function-calling (no google_search) per official docs
@@ -1656,6 +2036,7 @@ STRICT MODE (apply only if drift is high):
             sources=sources,
             grounding_unavailable=grounding_unavailable,
             grounding_notice=grounding_notice,
+            follow_up_ideas=follow_up_ideas or {},
         )
     except HTTPException:
         raise
@@ -1671,6 +2052,14 @@ async def virtual_staging_upload(request: VirtualStagingUploadRequest):
     Accepts a base64 data URL and returns hosted URLs or data URLs of results.
     """
     try:
+        logger.info("[VirtualStaging UPLOAD] Request: preset=%s, prompt_len=%s, density=%s, lock_envelope=%s, num_variations=%s, enable_grounding=%s",
+                    getattr(request, "style_preset", None),
+                    len(getattr(request, "style_prompt", "") or ""),
+                    getattr(request, "furniture_density", None),
+                    getattr(request, "lock_envelope", None),
+                    getattr(request, "num_variations", None),
+                    getattr(request, "enable_grounding", False))
+
         # Decode uploaded image
         data = request.image_data_url.strip()
         try:
@@ -1679,6 +2068,27 @@ async def virtual_staging_upload(request: VirtualStagingUploadRequest):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid image_data_url/base64: {e}")
         image = Image.open(io.BytesIO(image_bytes))
+
+        try:
+            logger.info("[HD Pre-enhance VS] original=%sx%s short_side=%s", image.width, image.height, min(image.width, image.height))
+        except Exception:
+            pass
+
+        # Pre-enhance low-res uploads to ensure a clean HD baseline
+        try:
+            MIN_SHORT_SIDE = 1080
+            if min(image.width, image.height) < MIN_SHORT_SIDE:
+                _svc_pre_vs = DesignTransformationService()
+                _enh_vs = await _svc_pre_vs.enhance_quality(image=image, upscale_2x=True)
+                image = _enh_vs[0] if _enh_vs else image
+        except Exception as e:
+            logger.warning(f"Pre-enhance (virtual-staging-upload) skipped: {e}")
+
+        try:
+            logger.info("[HD Pre-enhance VS] working_size=%sx%s", image.width, image.height)
+        except Exception:
+            pass
+
 
         # Generate
         service = DesignTransformationService()
@@ -1691,7 +2101,40 @@ async def virtual_staging_upload(request: VirtualStagingUploadRequest):
             num_variations=request.num_variations,
         )
 
+        # Enforce HD-quality outputs (upscale if needed)
+        try:
+            MIN_SHORT_SIDE = 1080
+            _svc_hd_vs = DesignTransformationService()
+            _hd_images_vs: List[Image.Image] = []
+            for _img in transformed_images:
+                if min(_img.width, _img.height) < MIN_SHORT_SIDE:
+                    try:
+                        logger.info("[HD Post-enforce VS] upscaling variation size=%sx%s", _img.width, _img.height)
+                    except Exception:
+                        pass
+
+                    try:
+                        _enhanced_vs = await _svc_hd_vs.enhance_quality(image=_img, upscale_2x=True)
+                        _hd_images_vs.append(_enhanced_vs[0] if _enhanced_vs else _img)
+                        try:
+                            logger.info("[HD Post-enforce VS] result size=%sx%s",
+                                        (_enhanced_vs[0].width if _enhanced_vs else _img.width),
+                                        (_enhanced_vs[0].height if _enhanced_vs else _img.height))
+                        except Exception:
+                            pass
+
+                    except Exception as ie:
+                        logger.warning(f"HD enforce (virtual-staging-upload) failed on a variation: {ie}")
+                        _hd_images_vs.append(_img)
+                else:
+                    _hd_images_vs.append(_img)
+            transformed_images = _hd_images_vs
+        except Exception as e:
+            logger.warning(f"HD enforce (virtual-staging-upload) skipped: {e}")
+
         # Upload to storage when configured; else return data URLs
+
+
         image_urls: List[str] = []
         storage_service = TransformationStorageService()
         uploaded_session_id = str(uuid.uuid4())
@@ -1735,6 +2178,160 @@ async def virtual_staging_upload(request: VirtualStagingUploadRequest):
             logger.warning(f"Design analysis (virtual-staging-upload) failed: {e}")
             summary = {}
 
+        try:
+            logger.info("[Analysis VS] colors=%s materials=%s styles=%s",
+                        len((summary or {}).get("colors", [])),
+                        len((summary or {}).get("materials", [])),
+                        len((summary or {}).get("styles", [])))
+        except Exception:
+            pass
+
+        # Attach helpful image dimensions to summary
+        try:
+            def _ratio_str_vs(_w: int, _h: int) -> str:
+                try:
+                    g = math.gcd(int(_w), int(_h)) if _w > 0 and _h > 0 else 1
+                    return f"{int(_w)//g}:{int(_h)//g}" if g else f"{_w}:{_h}"
+                except Exception:
+                    return "n/a"
+            _ow, _oh = (image.width, image.height)
+            _rw, _rh = (transformed_images[0].width, transformed_images[0].height) if transformed_images else (None, None)
+            summary = summary or {}
+            summary["image_details"] = {
+                "original": {
+                    "width": _ow,
+                    "height": _oh,
+                    "megapixels": round((_ow * _oh) / 1_000_000, 2),
+                    "aspect_ratio": _ratio_str_vs(_ow, _oh),
+                },
+                "result": {
+                    "width": _rw,
+                    "height": _rh,
+                    "megapixels": (round((_rw * _rh) / 1_000_000, 2) if (_rw and _rh) else None),
+                    "aspect_ratio": (_ratio_str_vs(_rw, _rh) if (_rw and _rh) else None),
+                },
+            }
+        except Exception as e:
+            logger.warning(f"Failed to attach image_details (virtual staging): {e}")
+
+        # Spatial analysis and material quantity estimation (best-effort)
+        try:
+            spatial_vs = await service.gemini.analyze_spatial_and_quantities(first_img or image)
+            dims = (spatial_vs or {}).get("dimensions") or {}
+            openings = (spatial_vs or {}).get("openings") or {}
+            Lm = dims.get("length_m") or None
+            Wm = dims.get("width_m") or None
+            Hm = dims.get("height_m") or None
+
+            def _calc_numbers_vs(Lm, Wm, Hm, openings):
+                out = {}
+                try:
+                    import math as _math
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm]):
+                        floor_m2 = max(0.0, float(Lm) * float(Wm))
+                        ceil_m2 = floor_m2
+                    else:
+                        floor_m2 = ceil_m2 = None
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm, Hm]):
+                        perimeter_m = 2.0 * (float(Lm) + float(Wm))
+                        walls_m2_raw = perimeter_m * float(Hm)
+                        # openings
+                        windows = (openings.get("windows") if isinstance(openings, dict) else None)
+                        doors = (openings.get("doors") if isinstance(openings, dict) else None)
+                        openings_m2 = 0.0
+                        try:
+                            if isinstance(windows, int):
+                                openings_m2 += windows * 1.5
+                            if isinstance(doors, int):
+                                openings_m2 += doors * 1.9
+                        except Exception:
+                            pass
+                        walls_m2 = max(0.0, walls_m2_raw - openings_m2)
+                    else:
+                        walls_m2 = None
+
+                    coverage_m2_per_liter = 10.0
+                    coats = 2
+                    waste_pct = 0.10
+
+                    if floor_m2 is not None:
+                        flooring_m2_with_waste = floor_m2 * (1.0 + waste_pct)
+                        flooring_sqft = round(flooring_m2_with_waste * 10.7639, 1)
+                    else:
+                        flooring_m2_with_waste = None
+                        flooring_sqft = None
+
+                    if walls_m2 is not None:
+                        paint_liters = round((walls_m2 / coverage_m2_per_liter) * coats, 1)
+                        paint_gallons = round(paint_liters / 3.785, 2)
+                    else:
+                        paint_liters = None
+                        paint_gallons = None
+
+                    if all(isinstance(x, (int, float)) for x in [Lm, Wm]):
+                        baseboard_m = (2.0 * (float(Lm) + float(Wm))) * (1.0 + waste_pct)
+                        baseboard_ft = round(baseboard_m * 3.28084, 1)
+                    else:
+                        baseboard_m = None
+                        baseboard_ft = None
+
+                    if floor_m2 is not None:
+                        tile_m2 = floor_m2
+                        tile_area_m2 = 0.3 * 0.6
+                        tile_count = int(_math.ceil(tile_m2 / tile_area_m2))
+                    else:
+                        tile_count = None
+
+                    out = {
+                        "areas": {
+                            "floor_m2": (round(floor_m2, 2) if floor_m2 is not None else None),
+                            "walls_m2": (round(walls_m2, 2) if walls_m2 is not None else None),
+                            "ceiling_m2": (round(ceil_m2, 2) if ceil_m2 is not None else None),
+                        },
+                        "quantities": {
+                            "flooring_sqft": flooring_sqft,
+                            "flooring_m2": (round(flooring_m2_with_waste, 2) if flooring_m2_with_waste is not None else None),
+                            "paint_liters_two_coats": paint_liters,
+                            "paint_gallons_two_coats": paint_gallons,
+                            "baseboard_linear_ft": baseboard_ft,
+                            "tile_30x60cm_count": tile_count,
+                        },
+                        "assumptions": [
+                            "Paint coverage ~10 m2/liter/coat; 2 coats",
+                            "~10% waste added to flooring and trim",
+                            "Windows ~1.5 m2 each; doors ~1.9 m2 each (approx.)",
+                        ],
+                    }
+                except Exception:
+                    pass
+                return out
+
+            numbers_vs = _calc_numbers_vs(Lm, Wm, Hm, openings)
+            summary.setdefault("spatial_analysis", {})
+            summary["spatial_analysis"].update({
+                "dimensions_m": {"length_m": Lm, "width_m": Wm, "height_m": Hm},
+                "openings": openings,
+                "confidence": (spatial_vs or {}).get("confidence"),
+                **numbers_vs,
+            })
+            try:
+                logger.info("[Spatial VS] LxWxH= %s x %s x %s m; floor= %s m2; walls= %s m2; paint (2 coats)= %s L",
+                            Lm, Wm, Hm,
+                            numbers_vs.get("areas",{}).get("floor_m2"),
+                            numbers_vs.get("areas",{}).get("walls_m2"),
+                            numbers_vs.get("quantities",{}).get("paint_liters_two_coats") )
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning(f"Spatial analysis/quantities (virtual-staging) failed: {e}")
+
+        # Follow-up transformation suggestions (virtual staging)
+        follow_up_ideas: Dict[str, List[str]] = {}
+        try:
+            follow_up_ideas = await service.gemini.generate_transformation_ideas(summary=summary or {}, room_hint=None, max_ideas=6)
+        except Exception as e:
+            logger.warning(f"Follow-up idea generation (virtual staging) failed: {e}")
+
         # Diff-aware grounding (optional)
         products: List[Dict[str, Any]] = []
         sources: List[str] = []
@@ -1753,11 +2350,22 @@ async def virtual_staging_upload(request: VirtualStagingUploadRequest):
                     "requested_changes": ["furniture", "decor"],
                     "original_summary": original_summary,
                     "new_summary": summary,
-                    "location_hint": "Canada",
+                    "location_hint": os.getenv("DEFAULT_LOCATION_HINT", "Vancouver, BC, Canada"),
                 }
                 grounding = await service.gemini.suggest_products_with_grounding(grounding_input, max_items=5)
                 products = grounding.get("products", []) or []
                 sources = grounding.get("sources", []) or []
+                # If grounding returns empty, try function-calling fallback
+                if not products:
+                    try:
+                        fallback2 = await service.gemini.suggest_products_without_grounding_function_calling(grounding_input, max_items=5)
+                        products = fallback2.get("products", []) or []
+                        sources = fallback2.get("sources", []) or []
+                        if not products:
+                            grounding_notice = "No Canadian product pages were found via Google Search. Showing AI-suggested alternatives when available."
+                    except Exception as e3:
+                        logger.warning(f"Secondary fallback (no results, virtual-staging-upload) failed: {e3}")
+
             except Exception as e:
                 logger.warning(f"Grounded suggestion (virtual-staging-upload) failed: {e}")
                 grounding_unavailable = True
@@ -1781,6 +2389,7 @@ async def virtual_staging_upload(request: VirtualStagingUploadRequest):
             sources=sources,
             grounding_unavailable=grounding_unavailable,
             grounding_notice=grounding_notice,
+            follow_up_ideas=follow_up_ideas or {},
         )
     except HTTPException:
         raise
@@ -1841,6 +2450,7 @@ async def unstage_upload(request: UnstagingUploadRequest):
                 image_urls.append(f"data:image/jpeg;base64,{encoded}")
             except Exception as e:
                 logger.warning(f"Failed to encode generated image: {e}")
+
 
         return PromptedTransformUploadResponse(
             success=True,
@@ -2263,4 +2873,306 @@ async def analyze_image(
         logger.warning(f"analyze_image failed: {e}", exc_info=True)
         # Degrade gracefully with empty ideas so the UI still renders
         return AnalyzeImageResponse(summary={}, ideas=[])
+
+
+# ============================================================================
+# Enhanced Spatial Analysis Endpoints
+# ============================================================================
+
+class BoundingBoxAnalysisRequest(BaseModel):
+    """Request for bounding box object detection."""
+    image_data_url: str
+    objects_to_detect: Optional[List[str]] = Field(None, description="Specific objects to detect (e.g., ['sofa', 'lamp'])")
+    room_hint: Optional[str] = Field(None, description="Room type hint")
+
+
+class BoundingBoxAnalysisResponse(BaseModel):
+    """Response with detected objects and bounding boxes."""
+    objects: List[Dict[str, Any]]
+    image_dimensions: Dict[str, int]
+
+
+@router.post("/analyze-bounding-boxes", response_model=BoundingBoxAnalysisResponse)
+async def analyze_bounding_boxes(request: BoundingBoxAnalysisRequest):
+    """
+    Detect objects in an image and return bounding boxes with normalized coordinates.
+
+    Based on Google Gemini spatial understanding capabilities.
+    """
+    try:
+        service = DesignTransformationService()
+
+        # Decode image
+        image_data = request.image_data_url.split(",")[1] if "," in request.image_data_url else request.image_data_url
+        image_bytes = base64.b64decode(image_data)
+
+        # Analyze with bounding boxes
+        result = await service.gemini.analyze_with_bounding_boxes(
+            image=image_bytes,
+            objects_to_detect=request.objects_to_detect,
+            room_hint=request.room_hint
+        )
+
+        logger.info(f"[BoundingBoxes] Detected {len(result.get('objects', []))} objects")
+
+        return BoundingBoxAnalysisResponse(
+            objects=result.get("objects", []),
+            image_dimensions=result.get("image_dimensions", {})
+        )
+
+    except Exception as e:
+        logger.error(f"analyze_bounding_boxes failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SegmentationAnalysisRequest(BaseModel):
+    """Request for image segmentation."""
+    image_data_url: str
+    objects_to_segment: Optional[List[str]] = Field(None, description="Specific objects to segment")
+    room_hint: Optional[str] = None
+
+
+class SegmentationAnalysisResponse(BaseModel):
+    """Response with segmented objects and masks."""
+    segments: List[Dict[str, Any]]
+
+
+@router.post("/analyze-segmentation", response_model=SegmentationAnalysisResponse)
+async def analyze_segmentation(request: SegmentationAnalysisRequest):
+    """
+    Segment objects in an image and return segmentation masks.
+
+    Note: Segmentation masks are experimental and may not be available in all regions.
+    """
+    try:
+        service = DesignTransformationService()
+
+        # Decode image
+        image_data = request.image_data_url.split(",")[1] if "," in request.image_data_url else request.image_data_url
+        image_bytes = base64.b64decode(image_data)
+
+        # Analyze with segmentation
+        result = await service.gemini.analyze_with_segmentation(
+            image=image_bytes,
+            objects_to_segment=request.objects_to_segment,
+            room_hint=request.room_hint
+        )
+
+        logger.info(f"[Segmentation] Segmented {len(result.get('segments', []))} objects")
+
+        return SegmentationAnalysisResponse(
+            segments=result.get("segments", [])
+        )
+
+    except Exception as e:
+        logger.error(f"analyze_segmentation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class MultiImageSequenceRequest(BaseModel):
+    """Request for multi-image sequence analysis."""
+    image_data_urls: List[str] = Field(..., description="List of image data URLs in sequence order")
+    sequence_type: str = Field(default="transformation", description="Type: transformation, before_after, progress, variations")
+    custom_prompt: Optional[str] = None
+
+
+class MultiImageSequenceResponse(BaseModel):
+    """Response with sequence analysis."""
+    analysis: Dict[str, Any]
+
+
+@router.post("/analyze-sequence", response_model=MultiImageSequenceResponse)
+async def analyze_image_sequence(request: MultiImageSequenceRequest):
+    """
+    Analyze a sequence of images to detect patterns, changes, or progression.
+
+    Perfect for before/after comparisons and design variation analysis.
+    """
+    try:
+        service = DesignTransformationService()
+
+        # Decode all images
+        image_bytes_list = []
+        for data_url in request.image_data_urls:
+            image_data = data_url.split(",")[1] if "," in data_url else data_url
+            image_bytes_list.append(base64.b64decode(image_data))
+
+        # Analyze sequence
+        result = await service.gemini.analyze_multi_image_sequence(
+            images=image_bytes_list,
+            sequence_type=request.sequence_type,
+            prompt=request.custom_prompt
+        )
+
+        logger.info(f"[MultiImage] Analyzed {len(image_bytes_list)} images, type={request.sequence_type}")
+
+        return MultiImageSequenceResponse(analysis=result)
+
+    except Exception as e:
+        logger.error(f"analyze_image_sequence failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class DIYInstructionsRequest(BaseModel):
+    """Request for DIY instructions generation."""
+    project_description: str
+    reference_image_url: Optional[str] = None
+
+
+class DIYInstructionsResponse(BaseModel):
+    """Response with structured DIY instructions."""
+    instructions: Dict[str, Any]
+
+
+@router.post("/generate-diy-instructions", response_model=DIYInstructionsResponse)
+async def generate_diy_instructions(request: DIYInstructionsRequest):
+    """
+    Generate structured DIY instructions for a home improvement project.
+
+    Returns detailed steps, materials, tools, safety tips, and cost estimates.
+    """
+    try:
+        service = DesignTransformationService()
+
+        # Decode image if provided
+        image_bytes = None
+        if request.reference_image_url:
+            image_data = request.reference_image_url.split(",")[1] if "," in request.reference_image_url else request.reference_image_url
+            image_bytes = base64.b64decode(image_data)
+
+        # Generate instructions
+        result = await service.gemini.generate_diy_instructions(
+            project_description=request.project_description,
+            image=image_bytes
+        )
+
+        logger.info(f"[DIY] Generated instructions for: {request.project_description[:50]}")
+
+        return DIYInstructionsResponse(instructions=result)
+
+    except Exception as e:
+        logger.error(f"generate_diy_instructions failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Video Analysis Endpoints
+# ============================================================================
+
+class VideoAnalysisRequest(BaseModel):
+    """Request for video analysis."""
+    video_url: str = Field(..., description="YouTube URL or uploaded video path")
+    analysis_type: str = Field(default="summary", description="Type: summary, search, extract_text, tutorial")
+    custom_prompt: Optional[str] = None
+    fps: Optional[int] = Field(None, description="Frames per second to analyze (default: 1)")
+    start_offset_seconds: Optional[int] = Field(None, description="Start time for clipping")
+    end_offset_seconds: Optional[int] = Field(None, description="End time for clipping")
+
+
+class VideoAnalysisResponse(BaseModel):
+    """Response with video analysis results."""
+    analysis: Dict[str, Any]
+
+
+@router.post("/analyze-video", response_model=VideoAnalysisResponse)
+async def analyze_video(request: VideoAnalysisRequest):
+    """
+    Analyze a video file or YouTube URL.
+
+    Supports:
+    - Video summarization with timestamps
+    - Scene detection and captioning
+    - Text extraction from video frames
+    - DIY tutorial analysis with step-by-step instructions
+    """
+    try:
+        service = DesignTransformationService()
+
+        # Check if it's a YouTube URL
+        is_youtube = any(domain in request.video_url.lower() for domain in ['youtube.com', 'youtu.be'])
+
+        if is_youtube:
+            result = await service.gemini.analyze_youtube_video(
+                youtube_url=request.video_url,
+                prompt=request.custom_prompt or "",
+                start_offset_seconds=request.start_offset_seconds,
+                end_offset_seconds=request.end_offset_seconds
+            )
+        else:
+            result = await service.gemini.analyze_video(
+                video_path=request.video_url,
+                prompt=request.custom_prompt or "",
+                analysis_type=request.analysis_type,
+                fps=request.fps,
+                start_offset_seconds=request.start_offset_seconds,
+                end_offset_seconds=request.end_offset_seconds
+            )
+
+        logger.info(f"[Video] Analyzed video: {request.video_url[:50]}, type={request.analysis_type}")
+
+        return VideoAnalysisResponse(analysis=result)
+
+    except Exception as e:
+        logger.error(f"analyze_video failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class VideoUploadAnalysisRequest(BaseModel):
+    """Request for uploaded video analysis."""
+    analysis_type: str = Field(default="summary", description="Type: summary, search, extract_text, tutorial")
+    custom_prompt: Optional[str] = None
+    fps: Optional[int] = None
+    start_offset_seconds: Optional[int] = None
+    end_offset_seconds: Optional[int] = None
+
+
+@router.post("/analyze-video-upload")
+async def analyze_video_upload(
+    file: UploadFile = File(...),
+    analysis_type: str = Form(default="summary"),
+    custom_prompt: Optional[str] = Form(None),
+    fps: Optional[int] = Form(None),
+    start_offset_seconds: Optional[int] = Form(None),
+    end_offset_seconds: Optional[int] = Form(None),
+):
+    """
+    Analyze an uploaded video file.
+
+    Accepts video file upload and returns analysis based on the specified type.
+    """
+    try:
+        service = DesignTransformationService()
+
+        # Save uploaded file temporarily
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            tmp_path = tmp_file.name
+
+        try:
+            # Analyze video
+            result = await service.gemini.analyze_video(
+                video_path=tmp_path,
+                prompt=custom_prompt or "",
+                analysis_type=analysis_type,
+                fps=fps,
+                start_offset_seconds=start_offset_seconds,
+                end_offset_seconds=end_offset_seconds
+            )
+
+            logger.info(f"[VideoUpload] Analyzed: {file.filename}, type={analysis_type}")
+
+            return {"analysis": result}
+
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+
+    except Exception as e:
+        logger.error(f"analyze_video_upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 

@@ -359,6 +359,320 @@ class GeminiClient:
             logger.error(f"Error in analyze_design: {e}", exc_info=True)
             return {"error": str(e)}
 
+    async def analyze_spatial_and_quantities(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        room_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Estimate basic room spatial dimensions from a single photo and return structured data.
+
+        This uses Gemini Vision's spatial reasoning capabilities (see Google Gemini Cookbook examples)
+        to infer approximate dimensions by referencing common object sizes (doors, windows, furniture),
+        perspective lines, and visible planes. All numbers are approximate.
+
+        Returns a dict like:
+        {
+          "dimensions": {"length_m": float|null, "width_m": float|null, "height_m": float|null},
+          "openings": {"windows": int|null, "doors": int|null},
+          "object_counts": {"sofas": int, "chairs": int, ...},
+          "assumptions": [str],
+          "confidence": "low|medium|high"
+        }
+        """
+        try:
+            pil_image = self._load_image(image)
+            prompt = (
+                "You are a spatial reasoning assistant. From this single interior photo, estimate the room's "
+                "approximate dimensions in METERS. If the whole room isn't visible, infer plausible values based on "
+                "perspective and common object sizes (e.g., door ~0.9m wide x 2.0m tall, countertop ~0.9m high).\n\n"
+                f"Room type (hint): {room_hint or 'unknown'}.\n"
+                "Return ONLY compact JSON with this schema: {\n"
+                "  \"dimensions\": { \"length_m\": number|null, \"width_m\": number|null, \"height_m\": number|null },\n"
+                "  \"openings\": { \"windows\": integer|null, \"doors\": integer|null },\n"
+                "  \"object_counts\": object,  // keys for notable furniture or fixtures you can name\n"
+                "  \"assumptions\": [string],\n"
+
+                "  \"confidence\": \"low\"|\"medium\"|\"high\"\n"
+                "}.\n"
+                "Use one decimal place for meters when possible. Keep JSON under 1KB."
+            )
+            resp = self.vision_model.generate_content(
+                [prompt, pil_image],
+                generation_config={"temperature": 0.1}
+            )
+            text = getattr(resp, "text", "") or "{}"
+            import json, re
+            m = re.search(r"\{[\s\S]*\}", text)
+            data = json.loads(m.group(0)) if m else {}
+            if not isinstance(data, dict):
+                data = {}
+            # Normalize minimal structure
+            dims = data.get("dimensions") if isinstance(data.get("dimensions"), dict) else {}
+            openings = data.get("openings") if isinstance(data.get("openings"), dict) else {}
+            obj_counts = data.get("object_counts") if isinstance(data.get("object_counts"), dict) else {}
+            assumptions = data.get("assumptions") if isinstance(data.get("assumptions"), list) else []
+            confidence = data.get("confidence") if isinstance(data.get("confidence"), str) else "low"
+            out = {
+                "dimensions": {
+                    "length_m": dims.get("length_m"),
+                    "width_m": dims.get("width_m"),
+                    "height_m": dims.get("height_m"),
+                },
+                "openings": {
+                    "windows": openings.get("windows"),
+                    "doors": openings.get("doors"),
+                },
+                "object_counts": obj_counts,
+                "assumptions": assumptions,
+                "confidence": confidence,
+            }
+            try:
+                l, w, h = out["dimensions"].get("length_m"), out["dimensions"].get("width_m"), out["dimensions"].get("height_m")
+                logger.info("[Spatial] dims (m): L=%s W=%s H=%s, confidence=%s", l, w, h, confidence)
+            except Exception:
+                pass
+            return out
+        except Exception as e:
+            logger.warning(f"analyze_spatial_and_quantities failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def analyze_with_bounding_boxes(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        objects_to_detect: Optional[List[str]] = None,
+        room_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Detect objects in an image and return bounding boxes with normalized coordinates.
+
+        Based on Google Gemini Cookbook spatial understanding examples:
+        https://github.com/google-gemini/cookbook/blob/main/quickstarts/Spatial_understanding.ipynb
+
+        Args:
+            image: Image to analyze
+            objects_to_detect: List of specific objects to detect (e.g., ["sofa", "lamp", "window"])
+                              If None, detects all notable objects
+            room_hint: Optional room type hint for better context
+
+        Returns:
+            Dict with structure:
+            {
+                "objects": [
+                    {
+                        "label": str,
+                        "confidence": float,
+                        "bounding_box": {
+                            "y_min": float,  # normalized 0-1000
+                            "x_min": float,
+                            "y_max": float,
+                            "x_max": float
+                        }
+                    }
+                ],
+                "image_dimensions": {"width": int, "height": int}
+            }
+        """
+        try:
+            pil_image = self._load_image(image)
+            width, height = pil_image.size
+
+            # Build detection prompt
+            if objects_to_detect:
+                objects_str = ", ".join(objects_to_detect)
+                detection_prompt = f"Detect and locate these objects in the image: {objects_str}."
+            else:
+                detection_prompt = "Detect and locate all notable objects, furniture, fixtures, and architectural elements in this interior image."
+
+            if room_hint:
+                detection_prompt += f" Room type: {room_hint}."
+
+            prompt = (
+                f"{detection_prompt}\n\n"
+                "Return ONLY a JSON array where each object has:\n"
+                "{\n"
+                "  \"label\": string (object name),\n"
+                "  \"confidence\": float (0.0-1.0),\n"
+                "  \"bounding_box\": {\n"
+                "    \"y_min\": float (0-1000, normalized),\n"
+                "    \"x_min\": float (0-1000, normalized),\n"
+                "    \"y_max\": float (0-1000, normalized),\n"
+                "    \"x_max\": float (0-1000, normalized)\n"
+                "  }\n"
+                "}\n"
+                "Use normalized coordinates where 0 is top/left and 1000 is bottom/right."
+            )
+
+            response = self.vision_model.generate_content(
+                [prompt, pil_image],
+                generation_config={"temperature": 0.1}
+            )
+
+            text = getattr(response, "text", "") or "[]"
+            import json, re
+            # Extract JSON array
+            match = re.search(r"\[[\s\S]*\]", text)
+            objects = json.loads(match.group(0)) if match else []
+
+            logger.info(f"[BoundingBoxes] Detected {len(objects)} objects")
+
+            return {
+                "objects": objects if isinstance(objects, list) else [],
+                "image_dimensions": {"width": width, "height": height}
+            }
+
+        except Exception as e:
+            logger.error(f"analyze_with_bounding_boxes failed: {e}", exc_info=True)
+            return {"error": str(e), "objects": [], "image_dimensions": {}}
+
+    async def analyze_with_segmentation(
+        self,
+        image: Union[str, Path, Image.Image, bytes],
+        objects_to_segment: Optional[List[str]] = None,
+        room_hint: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Segment objects in an image and return segmentation masks.
+
+        Based on Google Gemini Cookbook spatial understanding examples.
+        Note: Segmentation masks are experimental and may not be available in all regions.
+
+        Args:
+            image: Image to analyze
+            objects_to_segment: List of specific objects to segment
+            room_hint: Optional room type hint
+
+        Returns:
+            Dict with structure:
+            {
+                "segments": [
+                    {
+                        "label": str,
+                        "confidence": float,
+                        "bounding_box": {...},
+                        "mask": str  # base64 encoded PNG mask
+                    }
+                ]
+            }
+        """
+        try:
+            pil_image = self._load_image(image)
+
+            # Build segmentation prompt
+            if objects_to_segment:
+                objects_str = ", ".join(objects_to_segment)
+                seg_prompt = f"Segment these objects: {objects_str}."
+            else:
+                seg_prompt = "Segment all major objects, furniture, and architectural elements."
+
+            if room_hint:
+                seg_prompt += f" Room type: {room_hint}."
+
+            prompt = (
+                f"{seg_prompt}\n\n"
+                "For each object, provide:\n"
+                "1. Label (object name)\n"
+                "2. Confidence score (0.0-1.0)\n"
+                "3. Bounding box with normalized coordinates (0-1000)\n"
+                "4. Segmentation mask as base64 encoded PNG\n\n"
+                "Return as JSON array."
+            )
+
+            response = self.vision_model.generate_content(
+                [prompt, pil_image],
+                generation_config={"temperature": 0.1}
+            )
+
+            text = getattr(response, "text", "") or "[]"
+            import json, re
+            match = re.search(r"\[[\s\S]*\]", text)
+            segments = json.loads(match.group(0)) if match else []
+
+            logger.info(f"[Segmentation] Segmented {len(segments)} objects")
+
+            return {
+                "segments": segments if isinstance(segments, list) else []
+            }
+
+        except Exception as e:
+            logger.error(f"analyze_with_segmentation failed: {e}", exc_info=True)
+            return {"error": str(e), "segments": []}
+
+    async def analyze_multi_image_sequence(
+        self,
+        images: List[Union[str, Path, Image.Image, bytes]],
+        sequence_type: str = "transformation",
+        prompt: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Analyze a sequence of images to detect patterns, changes, or progression.
+
+        Based on Google Gemini Cookbook "Guess the Shape" multi-image reasoning example.
+
+        Args:
+            images: List of images in sequence order
+            sequence_type: Type of sequence - "transformation", "before_after", "progress", "variations"
+            prompt: Optional custom prompt, otherwise uses default based on sequence_type
+
+        Returns:
+            Dict with analysis results including detected changes, patterns, and recommendations
+        """
+        try:
+            # Load all images
+            pil_images = [self._load_image(img) for img in images]
+
+            # Build prompt based on sequence type
+            if prompt is None:
+                if sequence_type == "transformation":
+                    prompt = (
+                        "Analyze this sequence of room transformation images. "
+                        "Identify what changed between each image: colors, materials, furniture, layout, lighting. "
+                        "Return JSON with: changes (array of change descriptions), "
+                        "progression_quality (rating 1-10), recommendations (array of suggestions)."
+                    )
+                elif sequence_type == "before_after":
+                    prompt = (
+                        "Compare the before and after images of this room renovation. "
+                        "Return JSON with: changes_made (array), improvements (array), "
+                        "estimated_cost_range (string), diy_feasibility (low/medium/high)."
+                    )
+                elif sequence_type == "progress":
+                    prompt = (
+                        "Analyze this renovation progress sequence. "
+                        "Return JSON with: stages (array of stage descriptions with completion %), "
+                        "current_stage (string), estimated_completion (percentage), "
+                        "quality_issues (array of concerns if any)."
+                    )
+                elif sequence_type == "variations":
+                    prompt = (
+                        "Compare these design variations for the same space. "
+                        "Return JSON with: variations (array with style, pros, cons for each), "
+                        "best_option (index and reason), price_comparison (relative costs)."
+                    )
+                else:
+                    prompt = "Analyze this sequence of images and describe the progression or changes."
+
+            # Combine prompt with all images
+            content = [prompt] + pil_images
+
+            response = self.vision_model.generate_content(
+                content,
+                generation_config={"temperature": 0.3}
+            )
+
+            text = getattr(response, "text", "") or "{}"
+            import json, re
+            match = re.search(r"\{[\s\S]*\}", text)
+            analysis = json.loads(match.group(0)) if match else {"raw": text}
+
+            logger.info(f"[MultiImage] Analyzed {len(images)} images, type={sequence_type}")
+
+            return analysis if isinstance(analysis, dict) else {"raw": text}
+
+        except Exception as e:
+            logger.error(f"analyze_multi_image_sequence failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
     async def suggest_products_with_grounding(
         self,
         summary_or_grounding: Dict[str, Any],
@@ -401,6 +715,7 @@ class GeminiClient:
                 "Return canonical product URLs (no tracking params). Avoid blog posts, category pages, and Pinterest."
             )
 
+            logger.info("[Grounding] Start. location_hint=%s is_diff=%s", location_hint, is_diff)
             if is_diff:
                 user_prompt = payload.get("user_prompt", "")
                 changes = payload.get("requested_changes", []) or []
@@ -562,7 +877,11 @@ class GeminiClient:
 
             # If few/empty results, retry once with stricter retailer focus
             products = parsed.get("products") if isinstance(parsed, dict) else None
+            logger.info("[Grounding] Initial candidates=%s (attempt=%s)", len(products or []), search_count)
+
             if not products or len(products) == 0:
+
+
                 fallback_prompt = (
                     prompt
                     + "\n\nSTRICT RETAILER FOCUS (CANADA): Use Google Search to find ONLY product pages from Canadian retailers and .ca domains, e.g., Home Depot Canada, RONA, Canadian Tire, Home Hardware, Lowe's Canada, IKEA.ca, Wayfair.ca, Costco.ca, BestBuy.ca, The Brick, Leon's, Structube, Amazon.ca, Walmart.ca. "
@@ -593,6 +912,7 @@ class GeminiClient:
                     'ikea.com', 'ikea.ca', 'wayfair.ca', 'costco.ca', 'bestbuy.ca',
                     'thebrick.com', 'leons.ca', 'structube.com', 'amazon.ca', 'walmart.ca'
                 ])
+
                 if isinstance(parsed, dict):
                     prods = parsed.get('products') or []
                     # Strict filter: keep ONLY Canadian-targeted URLs
@@ -604,9 +924,25 @@ class GeminiClient:
                             + "\n\nSTRICT .CA ONLY: Use Google Search with site:.ca and Canada sections (/en-ca,/fr-ca,/ca/). Return ONLY Canadian-targeted product pages with CAD pricing. Same JSON schema."
                         )
                         strict = _run_and_parse(strict_ca_prompt)
+
+                        try:
+                            all_domains = sorted(list({ _domain(p.get('url','')) for p in prods if isinstance(p, dict) }))
+                            ca_domains = sorted(list({ _domain(p.get('url','')) for p in ca_only if isinstance(p, dict) }))
+                            logger.info("[Grounding] CA filter: %s/%s kept. sample_ca_domains=%s", len(ca_only), len(prods), ca_domains[:5])
+                        except Exception:
+                            pass
+
                         if isinstance(strict, dict):
                             prods2 = strict.get('products') or []
                             ca_only = [p for p in prods2 if isinstance(p, dict) and _is_ca_url(p.get('url',''))]
+
+                        try:
+                            all_domains = sorted(list({ _domain(p.get('url','')) for p in prods if isinstance(p, dict) }))
+                            ca_domains = sorted(list({ _domain(p.get('url','')) for p in ca_only if isinstance(p, dict) }))
+                            logger.info("[Grounding] After strict retry: CA filter %s/%s kept. sample_ca_domains=%s", len(ca_only), len(prods), ca_domains[:5])
+                        except Exception:
+                            pass
+
                             parsed = strict if ca_only else parsed
                     # If still empty after strict retry, leave empty but attach a notice
                     if ca_only:
@@ -620,6 +956,12 @@ class GeminiClient:
                         if len(ordered) > max_items:
                             ordered = ordered[:max_items]
                         parsed['products'] = ordered
+
+                        try:
+                            logger.info("[Grounding] Final kept=%s (small_local=%s, big=%s)", len(ordered), len(small_locals), len(bigs))
+                        except Exception:
+                            pass
+
                     else:
                         # Drop all non-CA items to honor policy
                         parsed['products'] = []
@@ -1178,19 +1520,35 @@ Only modify the specific elements mentioned in the transformation request."""
 
             images: List[Image.Image] = []
             count = max(1, int(num_images or 1))
-            for _ in range(count):
-                response = client.models.generate_content(
-                    model=self.config.default_image_gen_model,
-                    contents=contents,
-                    config=gen_config,
-                )
+
+            # Generate images in parallel using asyncio.gather for speed
+            import asyncio
+
+            async def generate_single():
                 try:
+                    response = client.models.generate_content(
+                        model=self.config.default_image_gen_model,
+                        contents=contents,
+                        config=gen_config,
+                    )
+                    result_images = []
                     for part in getattr(response.candidates[0].content, "parts", []) or []:
                         inline = getattr(part, "inline_data", None)
                         if inline and getattr(inline, "data", None):
-                            images.append(Image.open(BytesIO(inline.data)))
-                except Exception:
-                    pass
+                            result_images.append(Image.open(BytesIO(inline.data)))
+                    return result_images
+                except Exception as e:
+                    logger.warning(f"Failed to generate single variation: {e}")
+                    return []
+
+            # Generate all variations in parallel
+            tasks = [generate_single() for _ in range(count)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Flatten results
+            for result in results:
+                if isinstance(result, list):
+                    images.extend(result)
 
             logger.info(f"Edited image with native Gemini model; produced {len(images)} variation(s)")
             return images
@@ -1333,6 +1691,284 @@ Only modify the specific elements mentioned in the transformation request."""
             logger.error(f"Error in segment_image: {e}", exc_info=True)
             raise
 
+
+    async def analyze_video(
+        self,
+        video_path: Union[str, Path],
+        prompt: str,
+        analysis_type: str = "summary",
+        fps: Optional[int] = None,
+        start_offset_seconds: Optional[int] = None,
+        end_offset_seconds: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Analyze a video file using Gemini's video understanding capabilities.
+
+        Based on Google Gemini Cookbook video understanding examples:
+        https://github.com/google-gemini/cookbook/blob/main/quickstarts/Video_understanding.ipynb
+
+        Args:
+            video_path: Path to video file or YouTube URL
+            prompt: Analysis prompt (or use default based on analysis_type)
+            analysis_type: Type of analysis - "summary", "search", "extract_text", "tutorial"
+            fps: Frames per second to analyze (default: 1 FPS)
+            start_offset_seconds: Start time in seconds for clipping
+            end_offset_seconds: End time in seconds for clipping
+
+        Returns:
+            Dict with analysis results
+        """
+        try:
+            from google import genai as google_genai
+            from google.genai import types
+
+            client = google_genai.Client(api_key=self.config.api_key)
+
+            # Upload video to File API if it's a local file
+            video_uri = None
+            if str(video_path).startswith(('http://', 'https://', 'www.')):
+                # YouTube or web video
+                video_uri = str(video_path)
+            else:
+                # Local file - upload to File API
+                logger.info(f"[Video] Uploading video file: {video_path}")
+                video_file = client.files.upload(file=str(video_path))
+
+                # Wait for processing
+                import time
+                while video_file.state == "PROCESSING":
+                    logger.info("[Video] Waiting for video processing...")
+                    time.sleep(5)
+                    video_file = client.files.get(name=video_file.name)
+
+                if video_file.state == "FAILED":
+                    raise ValueError(f"Video processing failed: {video_file.state}")
+
+                video_uri = video_file.uri
+                logger.info(f"[Video] Processing complete: {video_uri}")
+
+            # Build video metadata for clipping/FPS
+            video_metadata = None
+            if fps or start_offset_seconds or end_offset_seconds:
+                video_metadata = types.VideoMetadata()
+                if fps:
+                    video_metadata.fps = fps
+                if start_offset_seconds is not None:
+                    video_metadata.start_offset = f"{start_offset_seconds}s"
+                if end_offset_seconds is not None:
+                    video_metadata.end_offset = f"{end_offset_seconds}s"
+
+            # Build default prompts based on analysis type
+            if not prompt or prompt == "":
+                if analysis_type == "summary":
+                    prompt = "Summarize this video in 3-5 sentences with key timestamps."
+                elif analysis_type == "search":
+                    prompt = "For each scene in this video, generate captions with timecodes."
+                elif analysis_type == "extract_text":
+                    prompt = "Extract all visible text from this video and organize it with timestamps."
+                elif analysis_type == "tutorial":
+                    prompt = (
+                        "Analyze this DIY/tutorial video and extract:\n"
+                        "1. Step-by-step instructions with timestamps\n"
+                        "2. Tools and materials mentioned\n"
+                        "3. Safety warnings or tips\n"
+                        "4. Estimated difficulty level\n"
+                        "Return as structured JSON."
+                    )
+
+            # Build content parts
+            parts = []
+            if video_metadata:
+                parts.append(types.Part(
+                    file_data=types.FileData(file_uri=video_uri),
+                    video_metadata=video_metadata
+                ))
+            else:
+                parts.append(types.Part(file_data=types.FileData(file_uri=video_uri)))
+
+            parts.append(types.Part(text=prompt))
+
+            # Generate content
+            response = client.models.generate_content(
+                model=self.config.default_vision_model,
+                contents=types.Content(parts=parts),
+            )
+
+            text = getattr(response, "text", "") or "{}"
+
+            # Try to parse as JSON if it looks like JSON
+            import json, re
+            result = {"raw_text": text}
+            if text.strip().startswith('{') or text.strip().startswith('['):
+                try:
+                    match = re.search(r"[\{\[][\s\S]*[\}\]]", text)
+                    if match:
+                        result["structured"] = json.loads(match.group(0))
+                except:
+                    pass
+
+            logger.info(f"[Video] Analysis complete, type={analysis_type}")
+            return result
+
+        except Exception as e:
+            logger.error(f"analyze_video failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def analyze_youtube_video(
+        self,
+        youtube_url: str,
+        prompt: str,
+        start_offset_seconds: Optional[int] = None,
+        end_offset_seconds: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Analyze a YouTube video directly without downloading.
+
+        Args:
+            youtube_url: YouTube video URL
+            prompt: Analysis prompt
+            start_offset_seconds: Start time for clipping
+            end_offset_seconds: End time for clipping
+
+        Returns:
+            Dict with analysis results
+        """
+        return await self.analyze_video(
+            video_path=youtube_url,
+            prompt=prompt,
+            start_offset_seconds=start_offset_seconds,
+            end_offset_seconds=end_offset_seconds
+        )
+
+    async def generate_structured_content(
+        self,
+        prompt: str,
+        image: Optional[Union[str, Path, Image.Image, bytes]] = None,
+        response_schema: Optional[type] = None,
+        temperature: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate structured content with enforced JSON schema using TypedDict.
+
+        Based on Google Gemini Cookbook "Market a Jet Backpack" example:
+        https://github.com/google-gemini/cookbook/blob/main/examples/Market_a_Jet_Backpack.ipynb
+
+        Args:
+            prompt: Generation prompt
+            image: Optional image for multimodal generation
+            response_schema: TypedDict class defining the expected JSON structure
+            temperature: Sampling temperature
+
+        Returns:
+            Dict matching the response_schema structure
+
+        Example:
+            from typing_extensions import TypedDict
+
+            class DIYInstructions(TypedDict):
+                title: str
+                difficulty: str
+                estimated_time: str
+                materials: list[str]
+                tools: list[str]
+                steps: list[str]
+                safety_tips: list[str]
+
+            result = await client.generate_structured_content(
+                prompt="Generate DIY instructions for painting a room",
+                response_schema=DIYInstructions
+            )
+        """
+        try:
+            from google import genai as google_genai
+            from google.genai import types
+
+            client = google_genai.Client(api_key=self.config.api_key)
+
+            # Build content
+            content_parts = [prompt]
+            if image:
+                pil_image = self._load_image(image)
+                content_parts.append(pil_image)
+
+            # Build config with JSON schema
+            config = types.GenerateContentConfig(
+                temperature=temperature or 0.4,
+                response_mime_type="application/json",
+            )
+
+            if response_schema:
+                config.response_schema = response_schema
+
+            response = client.models.generate_content(
+                model=self.config.default_text_model,
+                contents=content_parts,
+                config=config
+            )
+
+            text = getattr(response, "text", "") or "{}"
+            import json
+            result = json.loads(text)
+
+            logger.info(f"[StructuredContent] Generated with schema: {response_schema.__name__ if response_schema else 'None'}")
+            return result if isinstance(result, dict) else {"raw": text}
+
+        except Exception as e:
+            logger.error(f"generate_structured_content failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def generate_diy_instructions(
+        self,
+        project_description: str,
+        image: Optional[Union[str, Path, Image.Image, bytes]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate structured DIY instructions for a home improvement project.
+
+        Args:
+            project_description: Description of the DIY project
+            image: Optional reference image
+
+        Returns:
+            Dict with structured DIY instructions including steps, materials, tools, etc.
+        """
+        try:
+            from typing_extensions import TypedDict
+
+            class DIYInstructions(TypedDict):
+                title: str
+                difficulty: str  # "beginner", "intermediate", "advanced"
+                estimated_time: str
+                estimated_cost: str
+                materials: list[str]
+                tools: list[str]
+                steps: list[str]
+                safety_tips: list[str]
+                pro_tips: list[str]
+
+            prompt = (
+                f"Generate detailed DIY instructions for: {project_description}\n\n"
+                "Include:\n"
+                "- Clear title\n"
+                "- Difficulty level (beginner/intermediate/advanced)\n"
+                "- Estimated time and cost\n"
+                "- Complete materials list with quantities\n"
+                "- Required tools\n"
+                "- Step-by-step instructions (numbered)\n"
+                "- Safety tips\n"
+                "- Pro tips for best results"
+            )
+
+            return await self.generate_structured_content(
+                prompt=prompt,
+                image=image,
+                response_schema=DIYInstructions,
+                temperature=0.5
+            )
+
+        except Exception as e:
+            logger.error(f"generate_diy_instructions failed: {e}", exc_info=True)
+            return {"error": str(e)}
 
     def _load_image(self, image: Union[str, Path, Image.Image, bytes]) -> Image.Image:
         """

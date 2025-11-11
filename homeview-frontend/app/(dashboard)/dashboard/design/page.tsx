@@ -1,1145 +1,766 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Palette, Upload, Sparkles, Image as ImageIcon, ArrowRight } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Suspense, useState, useRef } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Sparkles, Upload, Loader2, Save, RefreshCw, Palette, Home, Sofa, Zap, Edit3, ArrowRight, Package, ExternalLink, Download, Share2 } from 'lucide-react';
 import { designAPI } from '@/lib/api/design';
-import { homesAPI } from '@/lib/api/homes';
+import { projectsAPI } from '@/lib/api/projects';
 
-import { useSearchParams } from 'next/navigation';
+// Import components
+import BeforeAfterSlider from '@/components/studio/BeforeAfterSlider';
 
+interface PresetOption {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  prompt: string;
+}
 
-export default function DesignStudioPage({ homeId, useDigitalTwin = false }: { homeId?: string; useDigitalTwin?: boolean; }) {
+const PRESET_OPTIONS: PresetOption[] = [
+  {
+    id: 'paint',
+    name: 'Paint Walls',
+    description: 'Change wall colors and finishes',
+    icon: <Palette className="w-6 h-6" />,
+    prompt: 'Transform the wall paint color to a modern, fresh look with a neutral color palette'
+  },
+  {
+    id: 'flooring',
+    name: 'New Flooring',
+    description: 'Replace flooring material and style',
+    icon: <Home className="w-6 h-6" />,
+    prompt: 'Replace the flooring with modern hardwood or luxury vinyl that complements the space'
+  },
+  {
+    id: 'furniture',
+    name: 'Furniture & Staging',
+    description: 'Add or rearrange furniture',
+    icon: <Sofa className="w-6 h-6" />,
+    prompt: 'Add modern furniture and staging to make the space feel more inviting and functional'
+  },
+  {
+    id: 'lighting',
+    name: 'Lighting Design',
+    description: 'Update lighting fixtures and ambiance',
+    icon: <Zap className="w-6 h-6" />,
+    prompt: 'Upgrade the lighting with modern fixtures and improve the overall ambiance'
+  },
+  {
+    id: 'custom',
+    name: 'Custom Design',
+    description: 'Describe your vision',
+    icon: <Edit3 className="w-6 h-6" />,
+    prompt: ''
+  }
+];
+
+function DesignStudioContent() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedRoomImageId, setSelectedRoomImageId] = useState<string | null>(null);
-  const [customPrompt, setCustomPrompt] = useState<string>('');
+  const [resultImages, setResultImages] = useState<string[]>([]);
   const [isTransforming, setIsTransforming] = useState(false);
-  const [resultUrls, setResultUrls] = useState<string[]>([]);
-  const [useGrounding, setUseGrounding] = useState<boolean>(true);
+  const [isUploading, setIsUploading] = useState(false);
   const [summary, setSummary] = useState<any | null>(null);
-  const [products, setProducts] = useState<Array<any>>([]);
-  const [sources, setSources] = useState<string[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState<string>('');
+  const [transformationStep, setTransformationStep] = useState<'upload' | 'options' | 'results'>('upload');
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [designHistory, setDesignHistory] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [groundingUnavailable, setGroundingUnavailable] = useState<boolean>(false);
-  const [groundingNotice, setGroundingNotice] = useState<string | undefined>(undefined);
-  // Preload from querystring (image or image_url) when arriving from chat
-  const searchParams = useSearchParams();
-  useEffect(() => {
-    try {
-      const imgUrl = searchParams.get('image_url');
-      const imgId = searchParams.get('image');
-      if (imgUrl) {
-        setSelectedImage(imgUrl);
-        setSelectedRoomImageId(null);
-      }
-      if (imgId) {
-        setSelectedRoomImageId(imgId);
-      }
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-
-
-  const [selectedVariationIndex, setSelectedVariationIndex] = useState<number>(0);
-  useEffect(() => { setSelectedVariationIndex(0); }, [resultUrls]);
-
-  // Angle range and lightbox
-  const [anglePreset, setAnglePreset] = useState<'subtle'|'medium'>('subtle');
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const fetchToDataUrl = async (url: string): Promise<string> => {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    return await new Promise<string>((resolve, reject) => {
+  // Helper function to compress images
+  const compressImage = (file: File, maxWidth: number, quality: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
       reader.onerror = reject;
-      reader.readAsDataURL(blob);
+      reader.readAsDataURL(file);
     });
   };
 
-  // Stacking edits on current result + segmentation base tracking
-  const [stackOnResult, setStackOnResult] = useState<boolean>(false);
-  const [segBaseDataUrl, setSegBaseDataUrl] = useState<string | null>(null);
+  // Handle image upload
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-
-  // Helpers for product shelf UI
-  const getDomainFromUrl = (u: string): string => {
+    setIsUploading(true);
     try {
-      const host = new URL(u).hostname || '';
-      return host.replace(/^www\./, '');
-    } catch {
-      return '';
-    }
-  };
-  const isCADomain = (u: string): boolean => {
-    try {
-      const host = new URL(u).hostname.toLowerCase();
-      return host.endsWith('.ca');
-    } catch {
-      return false;
-    }
-  };
-  const getFaviconUrl = (u: string): string => {
-    const d = getDomainFromUrl(u);
-    return d ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=64` : '';
-  };
-
-  // A–D tools state (Virtual Staging, Unstaging, Masked Edit, Segmentation)
-  const [vsStylePreset, setVsStylePreset] = useState<string>('modern');
-  const [vsStylePrompt, setVsStylePrompt] = useState<string>('');
-  const [vsDensity, setVsDensity] = useState<'light'|'medium'|'heavy'>('medium');
-  const [vsLockEnvelope, setVsLockEnvelope] = useState<boolean>(true);
-  const [unstageStrength, setUnstageStrength] = useState<'light'|'medium'|'full'>('medium');
-  const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null);
-  const [segmentClass, setSegmentClass] = useState<string>('floors');
-  const [replacePrompt, setReplacePrompt] = useState<string>('');
-
-  const [ideas, setIdeas] = useState<string[]>([]);
-  const [ideasByTheme, setIdeasByTheme] = useState<Record<string, string[]>>({});
-  const [styleTransformations, setStyleTransformations] = useState<Array<{ label: string; prompt: string }>>([]);
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const analysisCacheRef = useRef<Record<string, { summary: any; ideas: string[]; ideasByTheme?: Record<string, string[]>; styleTransformations?: Array<{ label: string; prompt: string }> }>>({});
-
-  // Auto-analyze selected Digital Twin image to personalize idea chips (with simple cache)
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!selectedRoomImageId) {
-        setIdeas([]);
-        setIdeasByTheme({});
-        setSummary(null);
-        return;
-      }
-
-      // Cache hit
-      const cached = analysisCacheRef.current[selectedRoomImageId];
-      if (cached) {
-        setSummary(cached.summary || null);
-        setIdeas(cached.ideas || []);
-        setIdeasByTheme(cached.ideasByTheme || {});
-        setStyleTransformations(cached.styleTransformations || []);
-        return;
-      }
-
-      try {
-        setIsAnalyzing(true);
-        const resp = await designAPI.analyzeImage(selectedRoomImageId, 5);
-        if (!cancelled) {
-          setSummary(resp.summary || null);
-          setIdeas(resp.ideas || []);
-          const normalizedThemes: Record<string, string[]> = Object.fromEntries(
-            Object.entries(resp.ideas_by_theme ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v : []])
-          );
-          setIdeasByTheme(normalizedThemes);
-          setStyleTransformations(resp.style_transformations || []);
-          analysisCacheRef.current[selectedRoomImageId] = {
-            summary: resp.summary || null,
-            ideas: resp.ideas || [],
-            ideasByTheme: normalizedThemes,
-            styleTransformations: resp.style_transformations || [],
-          };
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setIdeas([]);
-          setIdeasByTheme({});
-        }
-      } finally {
-        if (!cancelled) setIsAnalyzing(false);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [selectedRoomImageId]);
-
-  // When user uploads an image (no Digital Twin), auto-analyze to suggest idea chips
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!selectedImage || selectedRoomImageId) return;
-      try {
-        setIsAnalyzing(true);
-        setIdeas([]);
-        setIdeasByTheme({});
-        const resp = await designAPI.analyzeUploadedImage(selectedImage, 5);
-        if (cancelled) return;
-        setSummary(resp.summary || null);
-        setIdeas(resp.ideas || []);
-        const normalizedThemes: Record<string, string[]> = Object.fromEntries(
-          Object.entries(resp.ideas_by_theme ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v : []])
-        );
-        setIdeasByTheme(normalizedThemes);
-        setStyleTransformations(resp.style_transformations || []);
-      } catch (e) {
-        if (!cancelled) {
-          setIdeas([]);
-          setIdeasByTheme({});
-        }
-      } finally {
-        if (!cancelled) setIsAnalyzing(false);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [selectedImage, selectedRoomImageId]);
-
-
-
-  // Fetch user's transformations
-  const { data: transformations = [], isLoading } = useQuery({
-    queryKey: ['transformations'],
-    queryFn: designAPI.getAllTransformations,
-  });
-
-  // If Digital Twin is enabled and a home is selected, fetch it for display context
-  const { data: selectedHome } = useQuery({
-    queryKey: ['home', homeId],
-    queryFn: () => homesAPI.getHome(homeId!),
-    enabled: !!homeId && !!useDigitalTwin,
-  });
-
-  const dbImages = useMemo(() => {
-    if (!(useDigitalTwin && selectedHome)) return [] as Array<{ url: string; roomName?: string; id?: string }>;
-    const rooms = (selectedHome as any)?.rooms || [];
-    const images = rooms.flatMap((r: any) => (r.images || [])
-      .filter((img: any) => img.image_type === 'original')
-      .map((img: any) => ({ url: img.image_url as string, roomName: r?.name as string, id: img?.id as string }))
-    );
-    return images as Array<{ url: string; roomName?: string; id?: string }>;
-
-  }, [useDigitalTwin, selectedHome]);
-  const [roomFilter, setRoomFilter] = useState<string>('all');
-  const [page, setPage] = useState<number>(1);
-  const pageSize = 9;
-
-  const roomGroups = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const img of dbImages) {
-      const key = img.roomName || 'Unknown';
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-
-    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
-
-  }, [dbImages]);
-
-  const filteredImages = useMemo(() => {
-    if (roomFilter === 'all') return dbImages;
-    return dbImages.filter((img) => (img.roomName || 'Unknown') === roomFilter);
-  }, [dbImages, roomFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredImages.length / pageSize));
-  const pagedImages = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredImages.slice(start, start + pageSize);
-
-  }, [filteredImages, page]);
-
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-        setSelectedRoomImageId(null); // uploads not yet supported by backend transformations
-        setResultUrls([]);
-      };
-
-      reader.readAsDataURL(file);
+      const compressedDataUrl = await compressImage(file, 1920, 0.85);
+      setSelectedImage(compressedDataUrl);
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const handleTransform = async () => {
-    if (!selectedImage) return;
-    if (!customPrompt.trim()) return;
+  // Handle transformation with preset or custom prompt
+  const handleTransform = async (prompt: string) => {
+    if (!selectedImage || !prompt.trim()) {
+      alert('Please provide a transformation prompt');
+      return;
+    }
 
     setIsTransforming(true);
-    setResultUrls([]);
-    setSummary(null);
-    setProducts([]);
-    setSources([]);
-    setGroundingUnavailable(false);
-    setGroundingNotice(undefined);
+    setTransformationStep('results');
+
     try {
-      const prompt = customPrompt.trim();
+      const response = await designAPI.transformPromptedUpload(
+        selectedImage,
+        prompt,
+        { numVariations: 2, enableGrounding: true }
+      );
 
-      let resp;
-      if (stackOnResult && resultUrls.length > 0) {
-        const dataUrl = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
-        resp = await designAPI.transformPromptedUpload(dataUrl, prompt, { numVariations: 4, enableGrounding: useGrounding });
+      if (response.image_urls && response.image_urls.length > 0) {
+        setResultImages(response.image_urls);
+        setSummary(response.summary || null);
+        setProducts(response.products || []);
+
+        // Add to history
+        const historyItem = {
+          id: Date.now(),
+          originalImage: selectedImage,
+          transformedImages: response.image_urls,
+          summary: response.summary || null,
+          products: response.products || [],
+          prompt: prompt,
+          timestamp: new Date().toISOString(),
+        };
+        setDesignHistory([historyItem, ...designHistory]);
       } else {
-        resp = selectedRoomImageId
-          ? await designAPI.transformPrompted(selectedRoomImageId, prompt, { numVariations: 4, enableGrounding: useGrounding })
-          : await designAPI.transformPromptedUpload(selectedImage as string, prompt, { numVariations: 4, enableGrounding: useGrounding });
+        alert('No transformation results received');
       }
-
-      const images = (resp as any).image_urls ?? [];
-      setResultUrls(images);
-      setSummary((resp as any).summary || null);
-      setProducts(((resp as any).products || []) as any[]);
-      setSources(((resp as any).sources || []) as string[]);
-      setGroundingUnavailable(Boolean((resp as any).grounding_unavailable));
-      setGroundingNotice((resp as any).grounding_notice);
-    } catch (err) {
-      console.error('Transformation error:', err);
-      alert('Failed to transform image');
+    } catch (error) {
+      console.error('Failed to transform image:', error);
+      alert('Failed to generate design. Please try again.');
+      setTransformationStep('options');
     } finally {
       setIsTransforming(false);
     }
   };
 
+  // Handle preset selection
+  const handlePresetSelect = (preset: PresetOption) => {
+    setSelectedPreset(preset.id);
+    if (preset.id !== 'custom') {
+      handleTransform(preset.prompt);
+    }
+  };
+
+  // Drag & Drop handlers
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setIsDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        handleImageUpload({ target: { files: [file] } } as any);
+      } else {
+        alert('Please drop an image file');
+      }
+    }
+  };
+
+  // Add to favorites
+  const handleAddToFavorites = () => {
+    if (resultImages.length === 0) return;
+    const favorite = {
+      id: Date.now(),
+      originalImage: selectedImage,
+      transformedImage: resultImages[0],
+      summary: summary,
+      prompt: customPrompt || selectedPreset,
+      timestamp: new Date().toISOString(),
+    };
+    setFavorites([...favorites, favorite]);
+    alert('Design added to favorites!');
+  };
+
+
+
+  // Download before/after as image
+  const handleDownloadComparison = async () => {
+    if (!selectedImage || resultImages.length === 0) return;
+
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Create a canvas with both images side by side
+      const img1 = new Image();
+      const img2 = new Image();
+
+      img1.crossOrigin = 'anonymous';
+      img2.crossOrigin = 'anonymous';
+
+      img1.onload = () => {
+        img2.onload = () => {
+          canvas.width = img1.width + img2.width + 20;
+          canvas.height = Math.max(img1.height, img2.height) + 60;
+
+          // Fill background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Draw labels
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 20px Arial';
+          ctx.fillText('Before', 20, 30);
+          ctx.fillText('After', img1.width + 40, 30);
+
+          // Draw images
+          ctx.drawImage(img1, 10, 50);
+          ctx.drawImage(img2, img1.width + 20, 50);
+
+          // Download
+          const link = document.createElement('a');
+          link.href = canvas.toDataURL('image/png');
+          link.download = `design-comparison-${Date.now()}.png`;
+          link.click();
+        };
+        img2.src = resultImages[0];
+      };
+      img1.src = selectedImage;
+    } catch (error) {
+      console.error('Failed to download comparison:', error);
+      alert('Failed to download comparison image');
+    }
+  };
+
+
+
+  // Share design
+  const handleShareDesign = async () => {
+    if (!resultImages.length) return;
+
+    const shareText = `Check out this amazing room transformation I created with HomeView AI! 🏠✨`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'HomeView AI Design',
+          text: shareText,
+          url: window.location.href,
+        });
+      } catch (error) {
+        console.error('Share failed:', error);
+      }
+    } else {
+      // Fallback: copy to clipboard
+      const text = `${shareText}\n${window.location.href}`;
+      navigator.clipboard.writeText(text);
+      alert('Share link copied to clipboard!');
+    }
+  };
+
+  // Handle save project
+  const handleSaveProject = async () => {
+    if (!selectedImage || resultImages.length === 0) return;
+
+    setIsSaving(true);
+    try {
+      const projectData = {
+        name: `Design Project ${new Date().toLocaleDateString()}`,
+        original_image: selectedImage,
+        result_images: resultImages,
+        summary: summary,
+      };
+
+      if (currentProjectId) {
+        await projectsAPI.updateProject(currentProjectId, projectData);
+        alert('Project updated successfully!');
+      } else {
+        const response = await projectsAPI.saveProject(projectData);
+        setCurrentProjectId(response.id);
+        alert('Project saved successfully!');
+      }
+    } catch (error) {
+      console.error('Failed to save project:', error);
+      alert('Failed to save project. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Reset to start over
+  const handleReset = () => {
+    if (confirm('Are you sure you want to start over? This will clear your current design.')) {
+      setSelectedImage(null);
+      setResultImages([]);
+      setSummary(null);
+      setProducts([]);
+      setCurrentProjectId(null);
+      setSelectedPreset(null);
+      setCustomPrompt('');
+      setTransformationStep('upload');
+    }
+  };
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        {useDigitalTwin && homeId && selectedHome && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              Digital Twin: Using {(selectedHome as any)?.name}
-            </span>
-            {(((selectedHome as any)?.total_images ?? 0) > 0) && (
-              <span className="text-xs text-gray-500">
-                {((selectedHome as any)?.total_images ?? 0)} images · {((selectedHome as any)?.total_rooms ?? 0)} rooms
-              </span>
-            )}
+    <div className="h-full w-full overflow-y-auto bg-gradient-to-br from-purple-50 via-white to-blue-50">
+      <div className="max-w-6xl mx-auto p-6 pb-20 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              Design Studio
+            </h1>
+            <p className="text-gray-600 mt-1 text-sm md:text-base">Transform your space with AI-powered design</p>
           </div>
-        )}
-
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-            <Palette className="w-6 h-6 text-white" />
-          </div>
-          AI Design Studio
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Transform your rooms with AI-powered design in 40+ styles
-        </p>
-      </div>
-
-      {/* Main Design Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Panel - Upload & Original */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Original Image</CardTitle>
-            <CardDescription>Upload a photo of your room</CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            {selectedImage ? (
-              <div className="space-y-4">
-                <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={selectedImage}
-                    alt="Original room"
-
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                {/* Chat-style composer below the image */}
-                <div className="space-y-3">
-                  {styleTransformations.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] text-gray-500 w-16">Styles</span>
-                        {styleTransformations.map((st) => (
-                          <button
-                            key={`style-${st.label}`}
-                            type="button"
-                            className="text-xs px-3 py-1.5 rounded-full border bg-amber-50 hover:bg-amber-100"
-                            onClick={() => setCustomPrompt(st.prompt)}
-                            title={st.prompt}
-                          >
-                            {st.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {Object.values(ideasByTheme || {}).some((arr) => (arr?.length ?? 0) > 0) ? (
-                    <div className="space-y-2">
-                      {['color','flooring','lighting','decor','other'].map((cat) => {
-                        const items = (ideasByTheme?.[cat] || []) as string[];
-                        if (!items.length) return null;
-                        const label = cat.charAt(0).toUpperCase() + cat.slice(1);
-                        return (
-                          <div key={cat} className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] text-gray-500 w-16">{label}</span>
-                            {items.map((idea) => (
-                              <button
-                                key={`${cat}-${idea}`}
-                                type="button"
-                                className="text-xs px-2.5 py-1 rounded-full border bg-white hover:bg-gray-50"
-                                onClick={() => setCustomPrompt((prev) => (prev ? `${prev}\n${idea}` : idea))}
-                              >
-                                {idea}
-                              </button>
-
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {isAnalyzing && (
-                        <span className="text-[11px] text-gray-500">Analyzing image for suggestions…</span>
-                      )}
-                      {(ideas.length ? ideas : [
-                        'Change walls to soft sage green',
-                        'Replace with light oak hardwood',
-                        'Add matte-black pendant lights',
-                        'Warm neutral palette',
-                      ]).map((idea) => (
-                        <button
-                          key={idea}
-                          type="button"
-                          className="text-xs px-2.5 py-1 rounded-full border bg-white hover:bg-gray-50"
-                          onClick={() => setCustomPrompt((prev) => (prev ? `${prev}\n${idea}` : idea))}
-                        >
-                          {idea}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="use-grounding"
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={useGrounding}
-                      onChange={(e) => setUseGrounding(e.target.checked)}
-                    />
-                    <label htmlFor="use-grounding" className="text-xs text-gray-600">
-                      Use Google Search grounding to suggest products
-                    </label>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <label className="block text-xs text-gray-600 mb-1">Describe your changes</label>
-                  <textarea
-                    className="w-full border rounded p-2 text-sm min-h-[80px]"
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder="e.g., Paint walls soft sage, add matte black pendant, light oak flooring"
-                  />
-                </div>
-
-                <div className="mt-3 flex items-center gap-2">
-                  <Button
-                    onClick={handleTransform}
-                    disabled={isTransforming || !customPrompt.trim() || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Transform
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedImage(null)}
-                  >
-                    Change Image
-                  </Button>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={stackOnResult}
-                      onChange={(e) => setStackOnResult(e.target.checked)}
-                      disabled={resultUrls.length === 0}
-                    />
-                    Stack edits on current result
-                  </label>
-                  {stackOnResult && (
-                    <span className="text-[11px] text-gray-500">Uses the active variation as the base for the next tools.</span>
-                  )}
-                </div>
-                {/* Angles & Quality */}
-                <div className="mt-6 rounded border p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Angles & Quality</div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-600">Range</label>
-                      <select
-                        className="text-xs border rounded px-1.5 py-1"
-                        value={anglePreset}
-                        onChange={(e) => setAnglePreset(e.target.value as 'subtle'|'medium')}
-                      >
-                        <option value="subtle">Subtle (±6°)</option>
-                        <option value="medium">Medium (±12°)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1 mb-2">Generate small viewpoint shifts or enhance a blurry upload before transforming.</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!selectedImage || isTransforming}
-                      onClick={async () => {
-                        if (!selectedImage) return;
-                        try {
-                          setIsTransforming(true);
-                          const yawDegrees = anglePreset === 'subtle' ? 6 : 12;
-                          const pitchDegrees = anglePreset === 'subtle' ? 4 : 8;
-                          const numAngles = anglePreset === 'subtle' ? 3 : 4;
-                          const resp = await designAPI.multiAngleUpload(selectedImage, { numAngles, yawDegrees, pitchDegrees });
-                          setResultUrls((resp as any).image_urls ?? []);
-                        } catch (e) {
-                          alert('Failed to generate angles');
-                        } finally {
-                          setIsTransforming(false);
-                        }
-                      }}
-                    >Generate multi-angles</Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={resultUrls.length === 0 || isTransforming}
-                      onClick={async () => {
-                        try {
-                          setIsTransforming(true);
-                          const yawDegrees = anglePreset === 'subtle' ? 6 : 12;
-                          const pitchDegrees = anglePreset === 'subtle' ? 4 : 8;
-                          const numAngles = anglePreset === 'subtle' ? 3 : 4;
-                          const dataUrl = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
-                          const resp = await designAPI.multiAngleUpload(dataUrl, { numAngles, yawDegrees, pitchDegrees });
-                          setResultUrls((resp as any).image_urls ?? []);
-                        } catch (e) {
-                          alert('Failed to generate angles from current result');
-                        } finally {
-                          setIsTransforming(false);
-                        }
-                      }}
-                    >Angles from this result</Button>
-                    <Button
-                      size="sm"
-                      disabled={!selectedImage || isTransforming}
-                      onClick={async () => {
-                        if (!selectedImage) return;
-                        try {
-                          setIsTransforming(true);
-                          const resp = await designAPI.enhanceUpload(selectedImage, { upscale2x: true });
-                          const first = (resp as any).image_urls?.[0];
-                          if (first) {
-                            setSelectedImage(first);
-                            setResultUrls([]);
-                            alert('Image enhanced. Using enhanced copy for next transforms.');
-                          }
-                        } catch (e) {
-                          alert('Failed to enhance image');
-                        } finally {
-                          setIsTransforming(false);
-                        }
-                      }}
-                    >Enhance quality</Button>
-                  </div>
-                </div>
-
-                {/* Studio Tools (beta): Virtual Staging, Unstaging, Segmentation, Masked Edit */}
-                <div className="mt-6 border-t pt-4">
-                  <div className="text-[11px] text-gray-500 uppercase tracking-wide mb-2">Studio Tools (beta)</div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Virtual Staging */}
-                    <div className="rounded border p-3">
-                      <div className="text-sm font-medium mb-2">Virtual Staging</div>
-                      <div className="flex items-center gap-2">
-                        <select
-                          className="text-xs border rounded px-1.5 py-1"
-                          value={vsStylePreset}
-                          onChange={(e) => setVsStylePreset(e.target.value)}
-                        >
-                          <option value="modern">Modern</option>
-                          <option value="minimalist">Minimalist</option>
-                          <option value="traditional">Traditional</option>
-                          <option value="scandinavian">Scandinavian</option>
-                          <option value="bohemian">Bohemian</option>
-                        </select>
-                        <select
-                          className="text-xs border rounded px-1.5 py-1"
-                          value={vsDensity}
-                          onChange={(e) => setVsDensity(e.target.value as any)}
-                        >
-                          <option value="light">Light</option>
-                          <option value="medium">Medium</option>
-                          <option value="heavy">Heavy</option>
-                        </select>
-                        <label className="flex items-center gap-1 text-xs">
-                          <input type="checkbox" checked={vsLockEnvelope} onChange={(e) => setVsLockEnvelope(e.target.checked)} />
-                          Lock envelope
-                        </label>
-                      </div>
-                      <input
-                        className="mt-2 w-full border rounded px-2 py-1 text-xs"
-                        placeholder="Optional: add style prompt (e.g., coastal, mid-century sofa)"
-                        value={vsStylePrompt}
-                        onChange={(e) => setVsStylePrompt(e.target.value)}
-                      />
-                      <div className="mt-2">
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            if (!selectedImage) return;
-                            try {
-                              setIsTransforming(true);
-                              let resp;
-                              if (stackOnResult && resultUrls.length > 0) {
-                                const base = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
-                                resp = await designAPI.virtualStagingUpload(base, {
-                                  style_preset: vsStylePreset,
-                                  style_prompt: vsStylePrompt || undefined,
-                                  furniture_density: vsDensity,
-                                  lock_envelope: vsLockEnvelope,
-                                  num_variations: 3,
-                                  enableGrounding: useGrounding,
-                                });
-                              } else {
-                                resp = selectedRoomImageId
-                                  ? await designAPI.virtualStaging(selectedRoomImageId, {
-                                      style_preset: vsStylePreset,
-                                      style_prompt: vsStylePrompt || undefined,
-                                      furniture_density: vsDensity,
-                                      lock_envelope: vsLockEnvelope,
-                                      num_variations: 3,
-                                    })
-                                  : await designAPI.virtualStagingUpload(selectedImage as string, {
-                                      style_preset: vsStylePreset,
-                                      style_prompt: vsStylePrompt || undefined,
-                                      furniture_density: vsDensity,
-                                      lock_envelope: vsLockEnvelope,
-                                      num_variations: 3,
-                                      enableGrounding: useGrounding,
-                                    });
-                              }
-                              setResultUrls((resp as any).image_urls ?? []);
-                              setSummary((resp as any).summary || null);
-                              setProducts(((resp as any).products || []) as any[]);
-                              setSources(((resp as any).sources || []) as string[]);
-                              setGroundingUnavailable(Boolean((resp as any).grounding_unavailable));
-                              setGroundingNotice((resp as any).grounding_notice);
-                            } catch (e) {
-                              alert('Virtual staging failed');
-                            } finally {
-                              setIsTransforming(false);
-                            }
-                          }}
-                          disabled={isTransforming || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
-                        >Run Staging</Button>
-                      </div>
-                    </div>
-
-                    {/* Unstaging */}
-                    <div className="rounded border p-3">
-                      <div className="text-sm font-medium mb-2">Unstaging</div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-gray-600">Strength</label>
-                        <select
-                          className="text-xs border rounded px-1.5 py-1"
-                          value={unstageStrength}
-                          onChange={(e) => setUnstageStrength(e.target.value as any)}
-                        >
-                          <option value="light">Light</option>
-                          <option value="medium">Medium</option>
-                          <option value="full">Full</option>
-                        </select>
-                      </div>
-                      <div className="mt-2">
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            if (!selectedImage) return;
-                            try {
-                              setIsTransforming(true);
-                              let resp;
-                              if (stackOnResult && resultUrls.length > 0) {
-                                const base = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
-                                resp = await designAPI.unstageUpload(base, {
-                                  strength: unstageStrength,
-                                  num_variations: 3,
-                                });
-                              } else {
-                                resp = selectedRoomImageId
-                                  ? await designAPI.unstage(selectedRoomImageId, {
-                                      strength: unstageStrength,
-                                      num_variations: 3,
-                                    })
-                                  : await designAPI.unstageUpload(selectedImage as string, {
-                                      strength: unstageStrength,
-                                      num_variations: 3,
-                                    });
-                              }
-                              setResultUrls((resp as any).image_urls ?? []);
-                            } catch (e) {
-                              alert('Unstaging failed');
-                            } finally {
-                              setIsTransforming(false);
-                            }
-                          }}
-                          disabled={isTransforming || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
-                        >Run Unstaging</Button>
-                      </div>
-                    </div>
-
-                    {/* Segmentation + Masked Edit */}
-                    <div className="rounded border p-3 md:col-span-2">
-                      <div className="text-sm font-medium mb-2">Segmentation + Masked Edit</div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <label className="text-xs text-gray-600">Target</label>
-                        <select
-                          className="text-xs border rounded px-1.5 py-1"
-                          value={segmentClass}
-                          onChange={(e) => setSegmentClass(e.target.value)}
-                        >
-                          <option value="floors">Floors</option>
-                          <option value="walls">Walls</option>
-                          <option value="cabinets">Cabinets</option>
-                          <option value="countertops">Countertops</option>
-                          <option value="backsplash">Backsplash</option>
-                          <option value="windows">Windows</option>
-                          <option value="doors">Doors</option>
-                          <option value="furniture">Furniture</option>
-                          <option value="decor">Decor</option>
-                          <option value="appliances">Appliances</option>
-                          <option value="other">Other</option>
-                        </select>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={async () => {
-                            if (!selectedImage && !(stackOnResult && resultUrls.length > 0)) return;
-                            try {
-                              let seg;
-                              if (stackOnResult && resultUrls.length > 0) {
-                                const base = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
-                                setSegBaseDataUrl(base);
-                                seg = await designAPI.segmentUpload(base, { segment_class: segmentClass, num_masks: 1 });
-                              } else {
-                                seg = selectedRoomImageId
-                                  ? await designAPI.segment(selectedRoomImageId, { segment_class: segmentClass, num_masks: 1 })
-                                  : await designAPI.segmentUpload(selectedImage as string, { segment_class: segmentClass, num_masks: 1 });
-                                setSegBaseDataUrl(selectedImage as string);
-                              }
-                              const first = seg.mask_data_urls?.[0] || null;
-                              setMaskDataUrl(first);
-                            } catch (e) {
-                              alert('Segmentation failed');
-                            }
-                          }}
-                          disabled={!selectedImage && !(stackOnResult && resultUrls.length > 0)}
-                        >AI Segment</Button>
-                      </div>
-
-                      {maskDataUrl && (
-                        <div className="mt-3">
-                          <div className="text-[11px] text-gray-500 mb-1">Mask preview</div>
-                          <div className="flex items-start gap-3">
-                            <div className="w-1/2">
-                              <img src={(segBaseDataUrl || selectedImage) || ''} alt="original" className="w-full rounded border" />
-                            </div>
-                            <div className="w-1/2">
-                              <img src={maskDataUrl} alt="mask" className="w-full rounded border" />
-                            </div>
-                          </div>
-                          <div className="mt-3 flex items-center gap-2">
-                            <select
-                              className="text-xs border rounded px-1.5 py-1"
-                              value={replacePrompt ? 'replace' : 'remove'}
-                              onChange={(e) => { if (e.target.value === 'replace') { setReplacePrompt(replacePrompt || 'new item'); } else { setReplacePrompt(''); } }}
-                            >
-                              <option value="remove">Remove within mask</option>
-                              <option value="replace">Replace within mask</option>
-                            </select>
-                            {replacePrompt !== '' && (
-                              <input
-                                className="flex-1 border rounded px-2 py-1 text-xs"
-                                placeholder="Describe replacement (e.g., matte black pull handles)"
-                                value={replacePrompt}
-                                onChange={(e) => setReplacePrompt(e.target.value)}
-                              />
-                            )}
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                if (!selectedImage || !maskDataUrl) return;
-                                try {
-                                  setIsTransforming(true);
-                                      let baseImage: string | null = null;
-                                  if (segBaseDataUrl) {
-                                    baseImage = segBaseDataUrl;
-                                  } else if (stackOnResult && resultUrls.length > 0) {
-                                    baseImage = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
-                                  } else {
-                                    baseImage = selectedImage as string;
-                                  }
-                                  const useUpload = stackOnResult || !!segBaseDataUrl || !selectedRoomImageId;
-                                  const resp = useUpload
-                                    ? await designAPI.editWithMaskUpload(baseImage as string, maskDataUrl, {
-                                        operation: replacePrompt ? 'replace' : 'remove',
-                                        replacement_prompt: replacePrompt || undefined,
-                                        num_variations: 3,
-                                      })
-                                    : await designAPI.editWithMask(selectedRoomImageId as string, maskDataUrl, {
-                                        operation: replacePrompt ? 'replace' : 'remove',
-                                        replacement_prompt: replacePrompt || undefined,
-                                        num_variations: 3,
-                                      });
-                                  setResultUrls((resp as any).image_urls ?? []);
-                                } catch (e) {
-                                  alert('Masked edit failed');
-
-                                } finally {
-                                  setIsTransforming(false);
-                                }
-                              }}
-                              disabled={(isTransforming || !maskDataUrl) || (!selectedImage && !(stackOnResult && resultUrls.length > 0))}
-                            >Apply Mask Edit</Button>
-                          </div>
-
-
-
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-
-
-
-              </div>
-            ) : (<>
-              <label className="block">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-primary hover:bg-blue-50 transition-colors">
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-700 font-medium mb-1">
-                    Click to upload room photo
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    PNG, JPG up to 10MB
-                  </p>
-                </div>
-              </label>
-              {useDigitalTwin && dbImages.length > 0 && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs text-gray-600">Or pick a room photo from your home</div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-500">Room</label>
-                      <select
-                        className="text-xs border rounded px-1.5 py-1"
-                        value={roomFilter}
-                        onChange={(e) => { setRoomFilter(e.target.value); setPage(1); }}
-                      >
-                        <option value="all">All ({dbImages.length})</option>
-                        {roomGroups.map((g) => (
-                          <option key={g.name} value={g.name}>
-                            {g.name} ({g.count})
-
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {pagedImages.map((img) => (
-                      <button
-                        key={img.id || img.url}
-                        className="relative aspect-video rounded-md overflow-hidden border hover:ring-2 hover:ring-primary"
-                        onClick={() => { setSelectedImage(img.url); setSelectedRoomImageId(img.id || null); setResultUrls([]); }}
-                      >
-                        <img src={img.url} alt={img.roomName || 'Room'} className="w-full h-full object-cover" />
-                        {img.roomName && (
-                          <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded">
-                            {img.roomName}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {totalPages > 1 && (
-                    <div className="mt-3 flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">
-                        Showing {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, filteredImages.length)} of {filteredImages.length}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
-                        <span className="text-xs">{page}/{totalPages}</span>
-                        <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
+          {selectedImage && (
+            <div className="flex gap-2">
+              {resultImages.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={handleSaveProject}
+                  disabled={isSaving}
+                  className="gap-2"
+                  size="sm"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'Saving...' : currentProjectId ? 'Update' : 'Save'}
+                </Button>
               )}
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                className="gap-2"
+                size="sm"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Start Over
+              </Button>
+            </div>
+          )}
+        </div>
 
-              </>
-
-            )}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={resultUrls.length === 0 || isTransforming}
-                    onClick={async () => {
-                      try {
-                        const dataUrl = await fetchToDataUrl(resultUrls[selectedVariationIndex]);
-                        setSelectedImage(dataUrl);
-                        setSelectedRoomImageId(null);
-                        setResultUrls([]);
-                        setStackOnResult(false);
-                        alert('Using this result as the starting point for next edits.');
-                      } catch (e) {
-                        alert('Failed to load result as input');
-                      }
-                    }}
-                  >Use this result for next edit</Button>
-                </div>
-
-          </CardContent>
-        </Card>
-
-        {/* Right Panel - Transformed */}
-        <Card>
-          <CardHeader>
-            <CardTitle>AI Transformation</CardTitle>
-            <CardDescription>See your room in a new style</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isTransforming ? (
-              <div className="aspect-video bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <Sparkles className="w-12 h-12 text-purple-600 mx-auto mb-4 animate-pulse" />
-                  <p className="text-purple-900 font-medium">Transforming your room...</p>
-                  <p className="text-sm text-purple-700 mt-1">This may take a few moments</p>
-                </div>
-              </div>
-            ) : resultUrls.length > 0 ? (
-              <div className="space-y-4">
-                <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden cursor-zoom-in" onClick={() => setLightboxUrl(resultUrls[selectedVariationIndex])}>
-                  <img src={resultUrls[selectedVariationIndex]} alt={`Transformed ${selectedVariationIndex+1}`} className="w-full h-full object-cover" />
-                </div>
-                {resultUrls.length > 1 && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {resultUrls.map((u, idx) => (
-                      <button
-                        key={u}
-                        onClick={() => setSelectedVariationIndex(idx)}
-                        className={`relative rounded overflow-hidden border ${idx === selectedVariationIndex ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-gray-300'}`}
-                        title={`View variation ${idx+1}`}
-                      >
-                        <img src={u} alt={`Variation ${idx+1}`} className="w-full h-20 object-cover" />
-                        {idx === selectedVariationIndex && (
-                          <span className="absolute top-1 right-1 text-[10px] bg-primary text-white px-1.5 py-0.5 rounded">Active</span>
-                        )}
-                      </button>
-                    ))}
+        {/* Upload Section - Show prominently if no image */}
+        {!selectedImage && (
+          <div className="space-y-6">
+            <Card
+              className={`border-2 border-dashed bg-white/80 backdrop-blur shadow-xl transition-all ${
+                isDragActive
+                  ? 'border-purple-600 bg-purple-50'
+                  : 'border-purple-300'
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <CardContent className="p-8 md:p-12">
+                <div className="flex flex-col items-center justify-center text-center space-y-5">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center shadow-lg">
+                    <Upload className="w-10 h-10 text-purple-600" />
                   </div>
-                )}
-                {summary && (
-                  <div className="rounded-lg border p-3">
-                    <div className="text-sm font-medium">Design summary</div>
-                    {summary.description && (
-                      <p className="text-sm text-gray-600 mt-1">{summary.description}</p>
-                    )}
-                    {Array.isArray(summary.colors) && summary.colors.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {summary.colors.map((c: any, idx: number) => (
-                          <span key={idx} className="inline-flex items-center gap-2 text-xs px-2 py-1 border rounded">
-                            <span className="inline-block w-3 h-3 rounded" style={{ backgroundColor: c.hex || '#ddd' }} />
-                            {c.name || c.hex}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {Array.isArray(summary.materials) && summary.materials.length > 0 && (
-                      <div className="mt-2 text-xs text-gray-700">
-                        <span className="font-medium">Materials:</span> {summary.materials.join(', ')}
-                      </div>
-                    )}
-                    {Array.isArray(summary.styles) && summary.styles.length > 0 && (
-                      <div className="mt-1 text-xs text-gray-700">
-                        <span className="font-medium">Styles:</span> {summary.styles.join(', ')}
-                      </div>
-                    )}
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                      Upload Your Room Image
+                    </h2>
+                    <p className="text-base md:text-lg text-gray-600 max-w-lg">
+                      {isDragActive
+                        ? 'Drop your image here!'
+                        : 'Drag and drop your room photo here, or click to browse'}
+                    </p>
                   </div>
-                )}
-                {groundingUnavailable && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-xs px-2 py-1">
-                    {groundingNotice || 'Google Search grounding is unavailable; showing AI suggestions without live web sources.'}
-                  </div>
-                )}
-                {products.length > 0 && (
-                  <div className="rounded-lg border p-3">
-                    <div className="text-sm font-medium mb-2">Shop these items</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {products.map((p: any, i: number) => {
-                        const href = (p.url as string) || '#';
-                        const domain = getDomainFromUrl(href);
-                        const isCA = isCADomain(href);
-                        const thumb = (p.image_url as string) || getFaviconUrl(href);
-                        return (
-                          <a key={i} href={href} target="_blank" rel="noreferrer" className="group block border rounded-md overflow-hidden hover:shadow-sm transition">
-                            <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center">
-                              {thumb ? (
-                                <img src={thumb} alt={p.name} className="h-full w-full object-cover" />
-                              ) : (
-                                <div className="text-xs text-gray-400 p-2 text-center">No image</div>
-                              )}
-                            </div>
-                            <div className="p-2">
-                              <div className="text-xs font-medium line-clamp-2">{p.name}</div>
-                              <div className="mt-1 flex items-center gap-1 flex-wrap">
-                                {p.price_estimate && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    {p.price_estimate}
-                                  </span>
-                                )}
-                                {isCA && (
-                                  <span className="text-[10px] px-1 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">CAD</span>
-                                )}
-                                {isCA && (
-                                  <span className="text-[10px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">.ca</span>
-                                )}
-                                {p.category && (
-                                  <span className="text-[10px] px-1 py-0.5 rounded bg-gray-50 text-gray-600 border border-gray-200">{p.category}</span>
-                                )}
-                              </div>
-                              <div className="mt-1 text-[10px] text-gray-500">{domain}</div>
-                            </div>
-                          </a>
-                        );
-                      })}
-                    </div>
-                    {sources.length > 0 && (
-                      <div className="text-[11px] text-gray-500 mt-2">Sources: {sources.slice(0, 3).join(', ')}</div>
-                    )}
-                  </div>
-                )}
-
-                {false && (
-                  <div className="rounded-lg border p-3">
-                    <div className="text-sm font-medium">Product suggestions</div>
-                    <ul className="list-disc pl-5 text-sm mt-1 space-y-1">
-                      {products.map((p: any, i: number) => (
-                        <li key={i}>
-                          <a href={p.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">{p.name}</a>
-                          {p.category ? ` · ${p.category}` : ''}
-                          {p.brief_reason ? ` — ${p.brief_reason}` : ''}
-                        </li>
-                      ))}
-                    </ul>
-                    {sources.length > 0 && (
-                      <div className="text-[11px] text-gray-500 mt-2">Sources: {sources.slice(0, 3).join(', ')}</div>
-                    )}
-                  </div>
-                )}
-
-              </div>
-            ) : selectedImage && customPrompt.trim() ? (
-              <div className="space-y-4">
-                <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                  <div className="text-center text-gray-500">
-                    <ImageIcon className="w-12 h-12 mx-auto mb-2" />
-                    <p className="text-sm">Click "Transform" to see the result</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="aspect-video bg-gray-50 rounded-lg flex items-center justify-center">
-                <div className="text-center text-gray-400">
-                  <ArrowRight className="w-12 h-12 mx-auto mb-2" />
-                  <p className="text-sm">
-                    Upload an image, pick a room photo, and describe your changes
+                  <input
+                    id="room-upload-file-input"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="sr-only"
+                  />
+                  <label htmlFor="room-upload-file-input" className="cursor-pointer">
+                    <Button
+                      type="button"
+                      size="lg"
+                      onClick={() => { try { fileInputRef.current?.focus(); fileInputRef.current?.click(); } catch (err) { console.error('File picker failed, retrying', err); try { fileInputRef.current?.click(); } catch {} } }}
+                      disabled={isUploading}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-6 text-base md:text-lg shadow-lg hover:shadow-xl transition-all"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-5 h-5 mr-2" />
+                          Choose Image to Get Started
+                        </>
+                      )}
+                    </Button>
+                  </label>
+                  <p className="text-xs md:text-sm text-gray-500">
+                    Supports JPG, PNG, WebP • Max 10MB • Best results with well-lit photos
                   </p>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
 
-
-
-      {/* Recent Transformations */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Recent Transformations</h2>
-        {isLoading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          </div>
-        ) : transformations.length === 0 ? (
-          <Card>
-            <CardContent className="py-12">
-              <div className="text-center text-gray-500">
-                <Palette className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                <p>No transformations yet</p>
-                <p className="text-sm mt-1">Upload an image to get started</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {transformations.slice(0, 6).map((transformation) => (
-              <Card key={transformation.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-                <div className="aspect-video bg-gray-200">
-                  <img
-                    src={transformation.transformed_image_url}
-                    alt={`${transformation.style} transformation`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium capitalize">{transformation.style}</span>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      transformation.status === 'completed'
-                        ? 'bg-green-100 text-green-700'
-                        : transformation.status === 'processing'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {transformation.status}
-                    </span>
+            {/* Design History Gallery */}
+            {designHistory.length > 0 && (
+              <Card className="bg-white/80 backdrop-blur shadow-lg">
+                <CardContent className="p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Designs</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {designHistory.slice(0, 6).map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setSelectedImage(item.originalImage);
+                          setTransformationStep('options');
+                        }}
+                        className="relative group rounded-lg overflow-hidden bg-gray-100 h-24 hover:shadow-lg transition-shadow"
+                      >
+                        <img
+                          src={item.originalImage}
+                          alt="Recent design"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                          <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100">
+                            Reload
+                          </span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            )}
+
+            {/* Favorites Gallery */}
+            {favorites.length > 0 && (
+              <Card className="bg-white/80 backdrop-blur shadow-lg">
+                <CardContent className="p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">⭐ Favorite Designs</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {favorites.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setSelectedImage(item.originalImage);
+                          setResultImages([item.transformedImage]);
+                          setSummary(item.summary);
+                          setTransformationStep('results');
+                        }}
+                        className="relative group rounded-lg overflow-hidden bg-gray-100 h-24 hover:shadow-lg transition-shadow"
+                      >
+                        <img
+                          src={item.transformedImage}
+                          alt="Favorite design"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                          <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100">
+                            View
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Main Content - After upload */}
+        {selectedImage && transformationStep === 'options' && (
+          <div className="space-y-6">
+            {/* Uploaded Image Preview */}
+            <Card className="bg-white/80 backdrop-blur shadow-lg">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-semibold text-gray-900">Your Room</h3>
+                  <label htmlFor="room-upload-file-input" className="cursor-pointer">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { try { fileInputRef.current?.focus(); fileInputRef.current?.click(); } catch (err) { console.error('File picker failed', err); try { fileInputRef.current?.click(); } catch {} } }}
+                      className="text-purple-600 hover:text-purple-700 text-xs h-7"
+                    >
+                      <Upload className="w-3 h-3 mr-1" />
+                      Change
+                    </Button>
+                  </label>
+                </div>
+                <div className="relative w-full h-64 md:h-80 overflow-hidden rounded-lg bg-gray-100">
+                  <img
+                    src={selectedImage}
+                    alt="Uploaded room"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <input
+                  id="room-upload-file-input"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="sr-only"
+                />
+              </CardContent>
+            </Card>
+
+            {/* Transformation Options */}
+            <Card className="bg-white/80 backdrop-blur shadow-lg">
+              <CardContent className="p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">How would you like to transform your room?</h3>
+                <p className="text-sm text-gray-600 mb-6">Choose a preset option or describe your vision</p>
+
+                {/* Preset Options Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                  {PRESET_OPTIONS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetSelect(preset)}
+                      disabled={isTransforming}
+                      className={`p-4 rounded-lg border-2 transition-all text-center ${
+                        selectedPreset === preset.id
+                          ? 'border-purple-600 bg-purple-50'
+                          : 'border-gray-200 hover:border-purple-300 bg-white'
+                      } ${isTransforming ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <div className="flex justify-center mb-2 text-purple-600">
+                        {preset.icon}
+                      </div>
+                      <h4 className="font-semibold text-sm text-gray-900 mb-1">{preset.name}</h4>
+                      <p className="text-xs text-gray-600">{preset.description}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Prompt Input */}
+                {selectedPreset === 'custom' && (
+                  <div className="space-y-3 mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <label className="block text-sm font-semibold text-gray-900">
+                      Describe your design vision
+                    </label>
+                    <textarea
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      placeholder="E.g., 'Modern minimalist kitchen with white cabinets, marble countertops, and stainless steel appliances'"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 resize-none"
+                      rows={4}
+                    />
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">{customPrompt.length} characters</span>
+                      <Button
+                        onClick={() => handleTransform(customPrompt)}
+                        disabled={isTransforming || !customPrompt.trim()}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Generate Design
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Transformation Results */}
+        {selectedImage && transformationStep === 'results' && (
+          <div className="space-y-6">
+            {isTransforming ? (
+              <Card className="bg-white/80 backdrop-blur shadow-lg">
+                <CardContent className="p-12 text-center">
+                  <Loader2 className="w-12 h-12 mx-auto text-purple-600 mb-4 animate-spin" />
+                  <p className="text-lg font-semibold text-gray-900 mb-2">Generating your design...</p>
+                  <p className="text-sm text-gray-600">This usually takes 30-45 seconds</p>
+                </CardContent>
+              </Card>
+            ) : resultImages.length > 0 ? (
+              <>
+                {/* Before/After Comparison */}
+                <Card className="bg-white/80 backdrop-blur shadow-lg">
+                  <CardContent className="p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Before & After</h3>
+                    <BeforeAfterSlider
+                      beforeImage={selectedImage}
+                      afterImage={resultImages[0]}
+                      beforeLabel="Original"
+                      afterLabel="Transformed"
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Transformation Summary */}
+                {summary && (
+                  <Card className="bg-white/80 backdrop-blur shadow-lg">
+                    <CardContent className="p-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">Transformation Summary</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(summary).map(([key, value]: [string, any]) => (
+                          <div key={key} className="p-3 bg-purple-50 rounded-lg">
+                            <p className="text-xs font-semibold text-purple-600 uppercase mb-1">{key.replace(/_/g, ' ')}</p>
+                            <p className="text-sm text-gray-900">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Product Recommendations (Grounding Results) */}
+                {products && products.length > 0 && (
+                  <Card className="bg-white/80 backdrop-blur shadow-lg">
+                    <CardContent className="p-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Package className="w-5 h-5 text-purple-600" />
+                        Recommended Products
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {products.map((product, idx) => (
+                          <div key={idx} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                            <h4 className="font-semibold text-sm text-gray-900 mb-1">{product.name || product.title}</h4>
+                            <p className="text-xs text-gray-600 mb-2">{product.description || product.snippet}</p>
+                            {product.price && <p className="text-sm font-bold text-purple-600 mb-2">{product.price}</p>}
+                            {product.link && (
+                              <a
+                                href={product.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                View Product <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* All Variations */}
+                {resultImages.length > 1 && (
+                  <Card className="bg-white/80 backdrop-blur shadow-lg">
+                    <CardContent className="p-6">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4">All Design Variations</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {resultImages.map((url, index) => (
+                          <div key={index} className="rounded-lg overflow-hidden bg-gray-100">
+                            <img
+                              src={url}
+                              alt={`Variation ${index + 1}`}
+                              className="w-full h-64 object-cover"
+                            />
+                            <p className="text-center py-2 font-medium text-gray-700">Variation {index + 1}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <Button
+                    onClick={() => setTransformationStep('options')}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    Try Another
+                  </Button>
+                  <Button
+                    onClick={handleAddToFavorites}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    ⭐ Favorite
+                  </Button>
+                  <Button
+                    onClick={handleDownloadComparison}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </Button>
+                  <Button
+                    onClick={handleShareDesign}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Share
+                  </Button>
+                  <Button
+                    onClick={handleSaveProject}
+                    disabled={isSaving}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              </>
+            ) : null}
           </div>
         )}
       </div>
-
-      {/* Lightbox */}
-      {lightboxUrl && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={() => setLightboxUrl(null)}>
-          <button
-            className="absolute top-4 right-4 text-white text-2xl"
-            onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
-            aria-label="Close"
-          >
-            ×
-          </button>
-          <img
-            src={lightboxUrl}
-            alt="Full screen preview"
-            className="max-w-[90vw] max-h-[90vh] object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
-
     </div>
+  );
+}
+
+export default function DesignStudioPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading Design Studio...</div>}>
+      <DesignStudioContent />
+    </Suspense>
   );
 }
 
