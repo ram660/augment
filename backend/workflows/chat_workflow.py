@@ -4,6 +4,7 @@ import logging
 from typing import Any, Dict, List, Optional, TypedDict
 from datetime import datetime
 import uuid
+from pathlib import Path
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -17,6 +18,7 @@ from backend.workflows.base import (
 )
 from backend.services.rag_service import RAGService
 from backend.services.conversation_service import ConversationService
+from backend.services.memory_service import MemoryService
 from backend.integrations.gemini.client import GeminiClient
 from backend.integrations.agentlightning.tracker import AgentTracker
 from backend.integrations.agentlightning.rewards import RewardCalculator
@@ -32,6 +34,9 @@ from backend.services.persona_service import get_persona_service, SafetyLevel
 from backend.services.cache_service import get_cache_service
 from backend.services.journey_manager import get_journey_manager, JourneyStatus
 from backend.services.journey_persistence_service import JourneyPersistenceService
+from backend.agents.tools.runtime import ToolRuntimeContext
+from backend.agents.tools import gemini_tools
+from backend.models.user import User
 import hashlib
 
 logger = logging.getLogger(__name__)
@@ -48,13 +53,17 @@ class ChatState(BaseWorkflowState, total=False):
     persona: Optional[str]
     scenario: Optional[str]
     mode: Optional[str]  # 'chat' | 'agent'
+    uploaded_image_path: Optional[str]  # NEW: Path to uploaded image for multi-modal search
 
     # Context retrieval
     retrieved_context: Optional[Dict[str, Any]]
     context_sources: List[str]
 
     # Conversation history
-    conversation_history: List[Dict[str, str]]
+    conversation_history: List[Dict[str, Any]]
+
+    # Long-term memory (per-user / per-home)
+    user_memories: List[Dict[str, Any]]
 
     # Response generation
     ai_response: Optional[str]
@@ -73,6 +82,7 @@ class ChatState(BaseWorkflowState, total=False):
     contractors: Optional[List[Dict[str, Any]]]  # Google Maps contractor search
     generated_images: Optional[List[str]]
     visual_aids: Optional[List[Dict[str, Any]]]
+    image_analysis: Optional[Dict[str, Any]]  # NEW: Image analysis results from multi-modal search
 
     # Journey tracking
     journey_id: Optional[str]
@@ -103,6 +113,7 @@ class ChatWorkflow:
         )
         self.rag_service = RAGService(use_gemini=True)
         self.conversation_service = ConversationService(db_session)
+        self.memory_service = MemoryService(db_session)
         self.gemini_client = GeminiClient()
 
         # Initialize Agent Lightning tracker
@@ -583,20 +594,51 @@ Return JSON:
         try:
             conversation_id = state["conversation_id"]
 
-            # Try to load from database
-            history = await self.conversation_service.get_recent_messages(
+            # Try to build a compact context window that includes both
+            # recent turns and any stored summaries for older parts of
+            # the conversation. This keeps prompts within budget while
+            # preserving long-term context.
+            history = await self.conversation_service.build_context_window(
                 conversation_id=conversation_id,
-                count=10
+                max_messages=10,
+                include_summaries=True,
+                max_summaries=2,
             )
 
-            # If no history in DB, use provided history
+            # If no history in DB (e.g., brand new conversation), fall
+            # back to any history provided directly in the state.
             if not history:
                 history = state.get("conversation_history", [])
                 history = history[-10:] if len(history) > 10 else history
 
             state["conversation_history"] = history
 
-            logger.info(f"Loaded {len(state['conversation_history'])} messages from history")
+            # Load any long-lived user memories (preferences, budget, etc.).
+            user_memories: List[Dict[str, Any]] = []
+            user_id = state.get("user_id")
+            home_id = state.get("home_id")
+            if user_id:
+                try:
+                    mem_rows = await self.memory_service.get_memories_for_user(
+                        user_id=user_id,
+                        home_id=home_id,
+                        topics=None,
+                        limit=20,
+                    )
+                    user_memories = MemoryService.to_prompt_rows(mem_rows)
+                except Exception as mem_err:
+                    logger.warning(
+                        "Failed to load user memories for user %s: %s",
+                        user_id,
+                        mem_err,
+                    )
+
+            state["user_memories"] = user_memories
+
+            logger.info(
+                "Loaded %d items into conversation history (including summaries, if any)",
+                len(state["conversation_history"]),
+            )
             state = self.orchestrator.mark_node_complete(state, "load_conversation_history")
 
         except Exception as e:
@@ -608,44 +650,235 @@ Return JSON:
         return state
 
     async def _generate_response(self, state: ChatState) -> ChatState:
-        """Generate AI response using Gemini."""
-        state = self.orchestrator.mark_node_start(state, "generate_response")
+        '''Generate AI response using Gemini, with tool-calling when helpful.'''
+        state = self.orchestrator.mark_node_start(state, 'generate_response')
 
         try:
-            user_message = state["user_message"]
-            context = state.get("retrieved_context")
-            history = state.get("conversation_history", [])
+            user_message = state['user_message']
+            context = state.get('retrieved_context')
+            history = state.get('conversation_history', [])
 
             # Build comprehensive prompt
             prompt = self._build_response_prompt(
                 user_message,
                 context,
                 history,
-                state.get("persona"),
-                state.get("scenario"),
-                state.get("intent")
+                state.get('persona'),
+                state.get('scenario'),
+                state.get('intent'),
+                state.get('user_memories', []),
             )
 
-            # Generate response
-            response = await self.gemini_client.generate_text(
-                prompt=prompt,
-                temperature=0.7,
-                max_tokens=2048
+            # Prepare metadata
+            response_metadata = state.get('response_metadata', {})
+            tool_invocations = []
+
+            # Try function calling; fall back to plain text on any error
+            use_tools = True
+            try:
+                from google import genai as google_genai  # type: ignore
+                from google.genai import types as genai_types  # type: ignore
+            except Exception:
+                use_tools = False
+
+            ai_text = None
+
+            if use_tools:
+                try:
+                    client = google_genai.Client(api_key=self.gemini_client.config.api_key)
+                    tools = gemini_tools.get_all_function_declarations()
+
+                    gen_config = genai_types.GenerateContentConfig(
+                        tools=[genai_types.Tool(function_declarations=tools)],
+                        tool_config=genai_types.ToolConfig(
+                            function_calling_config=genai_types.FunctionCallingConfig(
+                                mode='AUTO'
+                            )
+                        ),
+                        temperature=0.7,
+                    )
+
+                    resp = client.models.generate_content(
+                        model=self.gemini_client.config.default_text_model,
+                        contents=prompt,
+                        config=gen_config,
+                    )
+
+                    # Parse tool calls and any direct text
+                    tool_calls = []
+                    text_parts = []
+                    try:
+                        candidate = (resp.candidates or [None])[0]
+                        if candidate:
+                            content = getattr(candidate, 'content', None)
+                            if content:
+                                for part in getattr(content, 'parts', []) or []:
+                                    fn = getattr(part, 'function_call', None)
+                                    if fn:
+                                        tool_calls.append(
+                                            {
+                                                'name': getattr(fn, 'name', '') or '',
+                                                'args': getattr(fn, 'args', {}) or {},
+                                            }
+                                        )
+                                    else:
+                                        txt = getattr(part, 'text', None)
+                                        if txt:
+                                            text_parts.append(txt)
+                    except Exception:
+                        tool_calls = []
+                        text_parts = []
+
+                    if tool_calls:
+                        # Resolve current user if available for tools that need auth
+                        current_user = None
+                        user_id = state.get('user_id')
+                        if user_id:
+                            try:
+                                current_user = await self.db.get(User, user_id)
+                            except Exception:
+                                current_user = None
+
+                        ctx = ToolRuntimeContext(
+                            db=self.db,
+                            gemini_client=self.gemini_client,
+                            current_user=current_user,
+                            home_id=state.get('home_id'),
+                            conversation_id=state.get('conversation_id'),
+                            location_hint=state.get('location_hint') or 'Vancouver, Canada',
+                            extras={'intent': state.get('intent')},
+                        )
+
+                        for call in tool_calls:
+                            try:
+                                tool_name = call['name']
+                                tool_args = call.get('args') or {}
+                                tool_response = await gemini_tools.execute_tool_call(
+                                    tool_name,
+                                    tool_args,
+                                    ctx,
+                                )
+
+                                # Normalize the tool response to a plain dict for
+                                # both logging and metadata. ToolResponse already
+                                # exposes latency_ms and success for observability.
+                                result_payload = (
+                                    tool_response.to_dict()
+                                    if hasattr(tool_response, 'to_dict')
+                                    else tool_response
+                                )
+
+                                record = {
+                                    'tool': tool_name,
+                                    'args': tool_args,
+                                    'result': result_payload,
+                                }
+                                tool_invocations.append(record)
+
+                                # Lightweight structured log for each tool call.
+                                if isinstance(result_payload, dict):
+                                    logger.info(
+                                        'Tool %s executed (success=%s, latency_ms=%s)',
+                                        tool_name,
+                                        result_payload.get('success'),
+                                        result_payload.get('latency_ms'),
+                                    )
+                                else:
+                                    logger.info('Tool %s executed', tool_name)
+                            except Exception as tool_err:
+                                logger.error(
+                                    'Error executing tool %s: %s',
+                                    call.get('name'),
+                                    tool_err,
+                                    exc_info=True,
+                                )
+                                tool_invocations.append(
+                                    {
+                                        'tool': call.get('name'),
+                                        'args': call.get('args'),
+                                        'error': str(tool_err),
+                                    }
+                                )
+
+                        if tool_invocations:
+                            logger.info(
+                                'Executed %d tools via Gemini function calling: %s',
+                                len(tool_invocations),
+                                [t.get('tool') for t in tool_invocations],
+                            )
+
+                        # Ask Gemini for final user-facing answer with tool results
+                        try:
+                            import json  # local import
+
+                            tools_summary = json.dumps(tool_invocations, default=str)
+                        except Exception:
+                            tools_summary = str(tool_invocations)
+
+                        final_prompt = (
+                            f'{prompt}\n\n'
+                            'You have access to structured tool results (JSON below). '
+                            'Use them to answer the user clearly and helpfully. '
+                            'Do not mention internal tool names unless it helps the user.\n\n'
+                            f'TOOL_RESULTS_JSON: {tools_summary}'
+                        )
+
+                        ai_text = await self.gemini_client.generate_text(
+                            prompt=final_prompt,
+                            temperature=0.7,
+                            max_tokens=2048,
+                        )
+                    else:
+                        direct_text = '\n'.join(text_parts).strip()
+                        if direct_text:
+                            ai_text = direct_text
+                        else:
+                            ai_text = await self.gemini_client.generate_text(
+                                prompt=prompt,
+                                temperature=0.7,
+                                max_tokens=2048,
+                            )
+                except Exception as tool_e:
+                    logger.error(
+                        'Error during Gemini tool-calling flow: %s',
+                        tool_e,
+                        exc_info=True,
+                    )
+                    ai_text = None
+
+            # Fallback to plain text generation
+            if ai_text is None:
+                ai_text = await self.gemini_client.generate_text(
+                    prompt=prompt,
+                    temperature=0.7,
+                    max_tokens=2048,
+                )
+
+            state['ai_response'] = ai_text
+            response_metadata['generated_at'] = datetime.utcnow().isoformat()
+            response_metadata['model'] = getattr(
+                self.gemini_client.config,
+                'default_text_model',
+                'gemini-2.5-flash',
             )
+            if tool_invocations:
+                response_metadata['tool_invocations'] = tool_invocations
+            state['response_metadata'] = response_metadata
 
-            state["ai_response"] = response
-            state["response_metadata"]["generated_at"] = datetime.utcnow().isoformat()
-            state["response_metadata"]["model"] = "gemini-2.0-flash-exp"
-
-            logger.info(f"Generated response ({len(response)} chars)")
-            state = self.orchestrator.mark_node_complete(state, "generate_response")
+            logger.info(f'Generated response ({len(ai_text)} chars)')
+            state = self.orchestrator.mark_node_complete(state, 'generate_response')
 
         except Exception as e:
-            state = self.orchestrator.add_error(state, e, "generate_response", recoverable=False)
+            state = self.orchestrator.add_error(
+                state,
+                e,
+                'generate_response',
+                recoverable=False,
+            )
             # Provide fallback response
-            state["ai_response"] = (
-                "I apologize, but I'm having trouble generating a response right now. "
-                "Please try rephrasing your question or try again in a moment."
+            state['ai_response'] = (
+                'I apologize, but I am having trouble generating a response right now. '
+                'Please try rephrasing your question or try again in a moment.'
             )
 
         return state
@@ -675,51 +908,158 @@ Return JSON:
             intent = state.get("intent", "question")
             user_message = state.get("user_message", "")
             ai_response = state.get("ai_response", "")
+            uploaded_image_path = state.get("uploaded_image_path")
 
             # Initialize multimodal content
             web_search_results = []
             web_sources = []
             youtube_videos = []
             generated_images = []
+            image_analysis = None
 
-            # 1. Web Search (Google Grounding) for product recommendations and cost estimates
-            if intent in ["product_recommendation", "cost_estimate", "material_selection"]:
+            # 1. Multi-Modal Search (NEW): If user uploaded image + asking about products
+            if uploaded_image_path and intent in ["product_recommendation", "design_inspiration", "material_selection", "question"]:
                 try:
-                    logger.info(f"Adding web search for intent: {intent}")
+                    logger.info(f"[MultiModal] Using multi-modal search with uploaded image: {uploaded_image_path}")
 
-                    # Build grounding query from user message and AI response
-                    grounding_input = {
-                        "user_prompt": user_message,
-                        "requested_changes": [intent],
-                        "location_hint": "Canada",  # Prefer Canadian sources
-                    }
+                    # Check if user is asking about products/shopping
+                    product_keywords = ["find", "buy", "purchase", "shop", "where", "similar", "like this", "match", "product"]
+                    is_product_query = any(keyword in user_message.lower() for keyword in product_keywords)
 
-                    # Check cache first
-                    cache_key = f"product_search:{hashlib.md5(user_message.encode()).hexdigest()[:16]}:{intent}"
-                    cached_result = await self.cache_service.get(cache_key, cache_type="product_search")
+                    if is_product_query or intent == "product_recommendation":
+                        # Use new multi-modal search (image + text)
+                        from pathlib import Path
 
-                    if cached_result:
-                        logger.info(f"Product search cache hit for intent: {intent}")
-                        web_search_results = cached_result.get("products", [])
-                        web_sources = cached_result.get("sources", [])
-                    else:
-                        # Use existing Gemini grounding capability
-                        grounding_result = await self.gemini_client.suggest_products_with_grounding(
-                            grounding_input,
-                            max_items=5
-                        )
+                        # Read image file
+                        image_path = Path(uploaded_image_path)
+                        if image_path.exists():
+                            # Use analyze_image_and_suggest_products for multi-modal search
+                            multimodal_result = await self.gemini_client.analyze_image_and_suggest_products(
+                                image=uploaded_image_path,
+                                user_prompt=user_message,
+                                room_hint=None,  # Could extract from context
+                                max_items=5,
+                                location_hint="Canada",
+                                user_id=state.get("user_id"),
+                                project_id=state.get("conversation_id")
+                            )
 
-                        web_search_results = grounding_result.get("products", [])
-                        web_sources = grounding_result.get("sources", [])
+                            if multimodal_result.success:
+                                # Extract products and image analysis
+                                data = multimodal_result.data if isinstance(multimodal_result.data, dict) else {}
+                                web_search_results = data.get("products", [])
+                                web_sources = data.get("sources", [])
+                                image_analysis = data.get("image_analysis", {})
 
-                        # Cache the result
-                        await self.cache_service.set(
-                            cache_key,
-                            {"products": web_search_results, "sources": web_sources},
-                            cache_type="product_search"
-                        )
+                                logger.info(f"[MultiModal] Found {len(web_search_results)} products via multi-modal search")
+                                logger.info(f"[MultiModal] Image analysis: {image_analysis}")
 
-                    logger.info(f"Found {len(web_search_results)} products, {len(web_sources)} sources")
+                                # Store image analysis in state
+                                state["image_analysis"] = image_analysis
+                            else:
+                                logger.warning(f"[MultiModal] Multi-modal search failed: {multimodal_result.error}")
+                        else:
+                            logger.warning(f"[MultiModal] Image file not found: {uploaded_image_path}")
+
+                except Exception as e:
+                    logger.error(f"[MultiModal] Multi-modal search failed: {e}", exc_info=True)
+                    # Fall back to regular grounding search
+
+            # 2. Regular Web Search (Google Grounding) for product recommendations without images
+            # NEW: Detect if user is asking for multiple items (batch search)
+            if not web_search_results and intent in ["product_recommendation", "cost_estimate", "material_selection"]:
+                try:
+                    # Detect multiple items in user message
+                    multiple_item_indicators = [" and ", ", ", " & ", " plus ", " also "]
+                    is_multiple_items = any(indicator in user_message.lower() for indicator in multiple_item_indicators)
+
+                    # Extract individual items if multiple
+                    if is_multiple_items:
+                        logger.info(f"[BatchSearch] Detected multiple items in query")
+
+                        # Simple extraction: split by common separators
+                        items = []
+                        for separator in [" and ", ", ", " & ", " plus ", " also "]:
+                            if separator in user_message.lower():
+                                items = [item.strip() for item in user_message.lower().split(separator)]
+                                break
+
+                        # Limit to 5 items for performance
+                        items = items[:5]
+
+                        if len(items) >= 2:
+                            logger.info(f"[BatchSearch] Searching for {len(items)} items: {items}")
+
+                            # Build batch queries
+                            batch_queries = [
+                                {
+                                    "user_prompt": item,
+                                    "requested_changes": [intent],
+                                    "location_hint": "Canada"
+                                }
+                                for item in items
+                            ]
+
+                            # Use batch grounding
+                            batch_results = await self.gemini_client.batch_grounding_queries(
+                                queries=batch_queries,
+                                max_items=3  # 3 items per query to avoid overwhelming
+                            )
+
+                            # Aggregate results from all queries
+                            all_products = []
+                            all_sources = []
+
+                            for result in batch_results:
+                                if result.success:
+                                    data = result.data if isinstance(result.data, dict) else {}
+                                    all_products.extend(data.get("products", []))
+                                    all_sources.extend(data.get("sources", []))
+
+                            web_search_results = all_products
+                            web_sources = list(set(all_sources))  # Deduplicate sources
+
+                            logger.info(f"[BatchSearch] Found {len(web_search_results)} products from {len(items)} queries")
+                        else:
+                            is_multiple_items = False
+
+                    # Single item search (fallback or default)
+                    if not is_multiple_items:
+                        logger.info(f"Adding web search for intent: {intent}")
+
+                        # Build grounding query from user message and AI response
+                        grounding_input = {
+                            "user_prompt": user_message,
+                            "requested_changes": [intent],
+                            "location_hint": "Canada",  # Prefer Canadian sources
+                        }
+
+                        # Check cache first
+                        cache_key = f"product_search:{hashlib.md5(user_message.encode()).hexdigest()[:16]}:{intent}"
+                        cached_result = await self.cache_service.get(cache_key, cache_type="product_search")
+
+                        if cached_result:
+                            logger.info(f"Product search cache hit for intent: {intent}")
+                            web_search_results = cached_result.get("products", [])
+                            web_sources = cached_result.get("sources", [])
+                        else:
+                            # Use existing Gemini grounding capability
+                            grounding_result = await self.gemini_client.suggest_products_with_grounding(
+                                grounding_input,
+                                max_items=5
+                            )
+
+                            web_search_results = grounding_result.get("products", [])
+                            web_sources = grounding_result.get("sources", [])
+
+                            # Cache the result
+                            await self.cache_service.set(
+                                cache_key,
+                                {"products": web_search_results, "sources": web_sources},
+                                cache_type="product_search"
+                            )
+
+                        logger.info(f"Found {len(web_search_results)} products, {len(web_sources)} sources")
 
                 except Exception as e:
                     logger.warning(f"Web search failed: {e}")
@@ -785,12 +1125,16 @@ Return JSON:
                     # Continue without YouTube videos
 
             # 3. Contractor Search (Google Maps Grounding) for contractor quotes
-            if intent in ["contractor_quotes", "find_contractor", "get_quote"]:
+            # NEW: Also trigger on natural language contractor queries
+            contractor_keywords = ["contractor", "hire", "find someone", "professional", "quote", "estimate", "installer", "specialist"]
+            is_contractor_query = any(keyword in user_message.lower() for keyword in contractor_keywords)
+
+            if intent in ["contractor_quotes", "find_contractor", "get_quote"] or is_contractor_query:
                 try:
-                    logger.info(f"Adding contractor search for intent: {intent}")
+                    logger.info(f"[ContractorSearch] Triggering contractor search for intent: {intent}, is_contractor_query: {is_contractor_query}")
 
                     # Use Google Maps Grounding to find contractors
-                    # Vancouver, BC coordinates
+                    # Vancouver, BC coordinates (default location)
                     vancouver_lat = 49.2827
                     vancouver_lng = -123.1207
 
@@ -819,47 +1163,26 @@ Return JSON:
                     cached_contractors = await self.cache_service.get(cache_key, cache_type="contractor_search")
 
                     if cached_contractors:
-                        logger.info(f"Contractor search cache hit for job type: {job_type}")
+                        logger.info(f"[ContractorSearch] Cache hit for job type: {job_type}")
                         contractors = cached_contractors
                     else:
-                        # Use Gemini with Google Maps grounding
-                        from google import genai as google_genai
-                        from google.genai import types
+                        # NEW: Use the dedicated find_local_contractors_with_maps method
+                        logger.info(f"[ContractorSearch] Searching for {job_type} in Vancouver, BC")
 
-                        # Create a separate client for Maps grounding
-                        maps_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-                        maps_response = await maps_client.aio.models.generate_content(
-                            model='gemini-2.0-flash-exp',
-                            contents=f"Find the top 5 {job_type} in Vancouver, BC and surrounding areas (Burnaby, Richmond, Surrey). Include their ratings, specialties, and contact information.",
-                            config=types.GenerateContentConfig(
-                                tools=[types.Tool(google_maps=types.GoogleMaps())],
-                                tool_config=types.ToolConfig(
-                                    retrieval_config=types.RetrievalConfig(
-                                        lat_lng=types.LatLng(
-                                            latitude=vancouver_lat,
-                                            longitude=vancouver_lng
-                                        )
-                                    )
-                                )
-                            )
+                        contractor_result = await self.gemini_client.find_local_contractors_with_maps(
+                            service_type=job_type,
+                            location="Vancouver, BC",
+                            radius_miles=25,
+                            max_results=5
                         )
 
-                        # Parse Maps grounding results
-                        contractors = []
-                        if hasattr(maps_response.candidates[0], 'grounding_metadata'):
-                            grounding = maps_response.candidates[0].grounding_metadata
-                            if grounding.grounding_chunks:
-                                for chunk in grounding.grounding_chunks[:5]:  # Top 5 contractors
-                                    if hasattr(chunk, 'maps'):
-                                        contractor = {
-                                            "name": chunk.maps.title,
-                                            "place_id": chunk.maps.place_id,
-                                            "url": chunk.maps.uri,
-                                        "type": job_type,
-                                        "location": "Vancouver, BC area",
-                                    }
-                                    contractors.append(contractor)
+                        if contractor_result.success:
+                            data = contractor_result.data if isinstance(contractor_result.data, dict) else {}
+                            contractors = data.get("contractors", [])
+                            logger.info(f"[ContractorSearch] Found {len(contractors)} contractors")
+                        else:
+                            logger.warning(f"[ContractorSearch] Search failed: {contractor_result.error}")
+                            contractors = []
 
                         # Cache the result
                         if contractors:
@@ -1269,6 +1592,78 @@ Scenario: {scenario_label}
                 except Exception as e:
                     logger.warning(f"Failed to update journey last_activity_at: {e}")
 
+            # Optionally generate/update a long-term summary. This is intentionally
+            # fire-and-forget so we don't block the main response path.
+            try:
+                import asyncio
+
+                async def _maybe_summarize(conv_id: str) -> None:
+                    try:
+                        await self.conversation_service.maybe_generate_summary(conv_id)
+                    except Exception as inner_e:  # pragma: no cover - best-effort
+                        logger.warning(
+                            "Background summary generation failed for %s: %s",
+                            conv_id,
+                            inner_e,
+                        )
+
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Schedule in the existing event loop
+                    loop.create_task(_maybe_summarize(conversation_id))
+                else:  # pragma: no cover - defensive
+                    loop.run_until_complete(_maybe_summarize(conversation_id))
+            except Exception as e:  # pragma: no cover - non-critical
+                logger.debug("Skipping summary generation due to error: %s", e)
+
+            # Optionally extract long-term memories from the conversation (best-effort).
+            try:
+                import asyncio
+
+                async def _maybe_extract_memories(conv_id: str, usr_id: str, hm_id: Optional[str]) -> None:
+                    try:
+                        # Only run every N messages to avoid unnecessary overhead.
+                        conv = await self.conversation_service.get_conversation(conv_id)
+                        if not conv:
+                            return
+                        msg_count = int(getattr(conv, "message_count", 0) or 0)
+                        if msg_count <= 0 or msg_count % 10 != 0:
+                            return
+
+                        await self.memory_service.extract_memories_from_conversation(
+                            conversation_id=conv_id,
+                            user_id=usr_id,
+                            home_id=hm_id,
+                        )
+                    except Exception as inner_e:  # pragma: no cover - best-effort
+                        logger.warning(
+                            "Background memory extraction failed for %s: %s",
+                            conv_id,
+                            inner_e,
+                        )
+
+                user_id_for_mem = state.get("user_id")
+                if user_id_for_mem:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        loop.create_task(
+                            _maybe_extract_memories(
+                                conversation_id,
+                                user_id_for_mem,
+                                state.get("home_id"),
+                            )
+                        )
+                    else:  # pragma: no cover - defensive
+                        loop.run_until_complete(
+                            _maybe_extract_memories(
+                                conversation_id,
+                                user_id_for_mem,
+                                state.get("home_id"),
+                            )
+                        )
+            except Exception as e:  # pragma: no cover - non-critical
+                logger.debug("Skipping memory extraction due to error: %s", e)
+
             logger.info(f"Saved conversation {conversation_id} to database")
             state = self.orchestrator.mark_node_complete(state, "save_conversation")
 
@@ -1355,16 +1750,26 @@ Scenario: {scenario_label}
         self,
         user_message: str,
         context: Optional[Dict[str, Any]],
-        history: List[Dict[str, str]],
+        history: List[Dict[str, Any]],
         persona: Optional[str] = None,
         scenario: Optional[str] = None,
         intent: Optional[str] = None,
+        user_memories: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """Build comprehensive prompt for response generation."""
         prompt_parts = []
 
-        # System prompt
-        prompt_parts.append("""You are HomeView AI, an intelligent home improvement assistant. You help homeowners, DIY enthusiasts, and contractors understand their homes and plan improvements.
+        # Load enhanced intelligent assistant system prompt
+        prompt_file = Path(__file__).parent.parent / "prompts" / "intelligent_assistant_system_prompt.txt"
+        try:
+            if prompt_file.exists():
+                enhanced_prompt = prompt_file.read_text(encoding="utf-8")
+                prompt_parts.append(enhanced_prompt)
+                logger.info("Loaded enhanced intelligent assistant system prompt")
+            else:
+                # Fallback to basic prompt if file not found
+                logger.warning(f"Enhanced prompt file not found at {prompt_file}, using fallback")
+                prompt_parts.append("""You are HomeView AI, an intelligent home improvement assistant. You help homeowners, DIY enthusiasts, and contractors understand their homes and plan improvements.
 
 Your capabilities (available platform actions you can guide to):
 - Estimate renovation costs (detailed cost breakdowns)
@@ -1386,6 +1791,9 @@ Guidelines:
 - CRITICAL: You CAN create and export PDFs. Never say "I cannot create PDF documents" or similar. When asked for a PDF, confirm you can do it and guide the user to provide any missing content (e.g., create a DIY plan first if needed).
 - Avoid repeating the same suggestion chips every message. If an action was just offered, propose the next logical step instead.
 """)
+        except Exception as e:
+            logger.error(f"Error loading enhanced prompt: {e}, using minimal fallback")
+            prompt_parts.append("""You are HomeView AI, an intelligent home improvement assistant.""")
 
         # Universal guidance (persona-agnostic - respond based on user's actual questions)
         prompt_parts.append("""
@@ -1476,12 +1884,43 @@ Adapt your tone and detail level to match what the user is asking for, not what 
 
             prompt_parts.append("\nUse this home data to provide accurate, specific answers.")
 
-        # Add conversation history
+        # Add long-lived user memory (preferences, constraints, etc.)
+        if user_memories:
+            prompt_parts.append("\n**USER MEMORY & PREFERENCES (long-term):**\n")
+            for mem in user_memories[:8]:  # keep this concise
+                topic = (mem.get("topic") or "general").replace("_", " ").title()
+                key = mem.get("key") or ""
+                value = mem.get("value")
+                if isinstance(value, dict) and "description" in value:
+                    description = str(value.get("description"))
+                else:
+                    description = str(value)
+
+                if key:
+                    prompt_parts.append(f"- [{topic}] {key}: {description}")
+                else:
+                    prompt_parts.append(f"- [{topic}] {description}")
+
+        # Add conversation summaries and recent history
         if history:
-            prompt_parts.append("\n**CONVERSATION HISTORY:**\n")
-            for msg in history[-6:]:  # Last 6 messages (3 exchanges)
-                role = "User" if msg.get("role") == "user" else "Assistant"
-                prompt_parts.append(f"{role}: {msg.get('content', '')}")
+            # Separate summaries from regular turns
+            summaries = [msg for msg in history if msg.get("type") == "summary"]
+            turns = [msg for msg in history if msg.get("type") != "summary"]
+
+            if summaries:
+                prompt_parts.append("\n**CONVERSATION SUMMARY (older turns):**\n")
+                for idx, summary in enumerate(summaries[-3:], start=1):
+                    content = summary.get("content", "")
+                    if not content:
+                        continue
+                    prefix = f"Summary {idx}: " if len(summaries) > 1 else "Summary: "
+                    prompt_parts.append(f"{prefix}{content}")
+
+            if turns:
+                prompt_parts.append("\n**CONVERSATION HISTORY (recent messages):**\n")
+                for msg in turns[-6:]:  # Last 6 messages (3 exchanges)
+                    role = "User" if msg.get("role") == "user" else "Assistant"
+                    prompt_parts.append(f"{role}: {msg.get('content', '')}")
 
         # Add current user message
         prompt_parts.append(f"\n**CURRENT USER MESSAGE:**\n{user_message}")

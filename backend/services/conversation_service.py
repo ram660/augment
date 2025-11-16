@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ConversationService:
     """
     Service for managing conversations and message history.
-    
+
     Features:
     - Create and manage conversation threads
     - Store and retrieve messages
@@ -27,11 +27,11 @@ class ConversationService:
     - Extract key topics and entities
     - Manage conversation context window
     """
-    
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.gemini_client = GeminiClient()
-    
+
     async def create_conversation(
         self,
         user_id: Optional[str] = None,
@@ -169,7 +169,7 @@ class ConversationService:
             await self.db.rollback()
             logger.error(f"Failed to update conversation title: {e}", exc_info=True)
             return None
-    
+
     async def get_conversation(
         self,
         conversation_id: str,
@@ -219,7 +219,7 @@ class ConversationService:
         except Exception as e:
             logger.error(f"Failed to get conversation {conversation_id}: {e}", exc_info=True)
             return None
-    
+
     async def add_message(
         self,
         conversation_id: str,
@@ -241,7 +241,7 @@ class ConversationService:
                 message_metadata=metadata or {},
                 context_sources=context_sources or []
             )
-            
+
             self.db.add(message)
 
             # Update conversation
@@ -276,12 +276,12 @@ class ConversationService:
 
             logger.info(f"Added {role} message to conversation {conversation_id}")
             return message
-            
+
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Failed to add message: {e}", exc_info=True)
             raise
-    
+
     async def get_messages(
         self,
         conversation_id: str,
@@ -297,16 +297,16 @@ class ConversationService:
                 .limit(limit)
                 .offset(offset)
             )
-            
+
             result = await self.db.execute(query)
             messages = result.scalars().all()
-            
+
             return list(messages)
-            
+
         except Exception as e:
             logger.error(f"Failed to get messages: {e}", exc_info=True)
             return []
-    
+
     async def get_recent_messages(
         self,
         conversation_id: str,
@@ -315,7 +315,7 @@ class ConversationService:
         """Get recent messages formatted for chat context."""
         try:
             messages = await self.get_messages(conversation_id, limit=count)
-            
+
             # Format for chat context
             formatted = []
             for msg in messages[-count:]:  # Last N messages
@@ -324,13 +324,70 @@ class ConversationService:
                     "content": msg.content,
                     "timestamp": msg.created_at.isoformat() if msg.created_at else None
                 })
-            
+
             return formatted
-            
+
         except Exception as e:
             logger.error(f"Failed to get recent messages: {e}", exc_info=True)
             return []
-    
+
+    async def build_context_window(
+        self,
+        conversation_id: str,
+        max_messages: int = 10,
+        include_summaries: bool = True,
+        max_summaries: int = 2,
+    ) -> List[Dict[str, Any]]:
+        """Build a compact context window for chat.
+
+        Returns a list of message dicts suitable for ChatWorkflow.conversation_history.
+        When summaries exist (and include_summaries is True), they are injected as
+        special entries with type="summary" before the recent turn messages.
+        """
+        try:
+            # Start with the most recent messages
+            recent_messages = await self.get_recent_messages(
+                conversation_id=conversation_id,
+                count=max_messages,
+            )
+
+            history: List[Dict[str, Any]] = []
+
+            if include_summaries:
+                # Fetch up to max_summaries most recent summaries
+                summaries = await self.get_summaries_for_conversation(
+                    conversation_id=conversation_id,
+                    limit=max_summaries,
+                )
+
+                # Order oldest -> newest so the prompt reads chronologically
+                for summary in reversed(summaries):
+                    history.append(
+                        {
+                            "role": "system",
+                            "type": "summary",
+                            "content": summary.summary_text,
+                            "key_topics": summary.key_topics,
+                            "created_at": summary.created_at.isoformat()
+                            if getattr(summary, "created_at", None)
+                            else None,
+                        }
+                    )
+
+            # Then append the most recent conversation turns
+            if recent_messages:
+                history.extend(recent_messages[-max_messages:])
+
+            return history
+
+        except Exception as e:
+            logger.error(
+                f"Failed to build context window for conversation {conversation_id}: {e}",
+                exc_info=True,
+            )
+            # Fall back to a simple recent-message window
+            return await self.get_recent_messages(conversation_id=conversation_id, count=max_messages)
+
     async def list_conversations(
         self,
         user_id: Optional[str] = None,
@@ -415,44 +472,140 @@ class ConversationService:
         except Exception as e:
             logger.error(f"Failed to list conversations: {e}", exc_info=True)
             return []
-    
+
+    async def get_summaries_for_conversation(
+        self,
+        conversation_id: str,
+        limit: int = 3,
+    ) -> List[ConversationSummary]:
+        """Return up to `limit` most recent summaries for a conversation.
+
+        Results are ordered from newest to oldest. This is used by the chat
+        workflow to inject concise summaries before the recent turn history.
+        """
+        try:
+            query = (
+                select(ConversationSummary)
+                .where(ConversationSummary.conversation_id == uuid.UUID(conversation_id))
+                .order_by(desc(ConversationSummary.created_at))
+                .limit(limit)
+            )
+
+            result = await self.db.execute(query)
+            summaries = result.scalars().all()
+            return list(summaries)
+
+        except Exception as e:
+            logger.error(
+                f"Failed to load conversation summaries for {conversation_id}: {e}",
+                exc_info=True,
+            )
+            return []
+
+
     async def archive_conversation(self, conversation_id: str) -> bool:
         """Archive a conversation (mark as inactive)."""
         try:
             conversation = await self.get_conversation(conversation_id)
             if not conversation:
                 return False
-            
+
             conversation.is_active = False
             conversation.updated_at = datetime.utcnow()
-            
+
             await self.db.commit()
             logger.info(f"Archived conversation: {conversation_id}")
             return True
-            
+
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Failed to archive conversation: {e}", exc_info=True)
             return False
-    
+
     async def delete_conversation(self, conversation_id: str) -> bool:
         """Delete a conversation and all its messages."""
         try:
             conversation = await self.get_conversation(conversation_id)
             if not conversation:
                 return False
-            
+
             await self.db.delete(conversation)
             await self.db.commit()
-            
+
             logger.info(f"Deleted conversation: {conversation_id}")
             return True
-            
+
         except Exception as e:
             await self.db.rollback()
-            logger.error(f"Failed to delete conversation: {e}", exc_info=True)
+            logger.error(
+                f"Failed to delete conversation {conversation_id}: {e}",
+                exc_info=True,
+            )
             return False
-    
+
+    async def maybe_generate_summary(
+        self,
+        conversation_id: str,
+        message_threshold: int = 20,
+    ) -> Optional[ConversationSummary]:
+        """Generate a new summary if enough new messages have accumulated.
+
+        This is a lightweight wrapper around `generate_summary` that:
+        - Checks total message_count on the conversation
+        - Looks at the most recent existing summary (if any)
+        - Only generates a new summary when at least `message_threshold` new
+          messages have been added since the last summary.
+
+        It is safe to call this on every turn; most calls will no-op once
+        summaries are up to date.
+        """
+        try:
+            conversation = await self.get_conversation(conversation_id)
+            if not conversation:
+                return None
+
+            total_messages = int(getattr(conversation, "message_count", 0) or 0)
+
+            # Not enough messages overall to justify a summary
+            if total_messages < max(5, message_threshold):
+                return None
+
+            # Find the most recent summary, if any
+            try:
+                query = (
+                    select(ConversationSummary)
+                    .where(ConversationSummary.conversation_id == conversation.id)
+                    .order_by(desc(ConversationSummary.created_at))
+                    .limit(1)
+                )
+                result = await self.db.execute(query)
+                last_summary = result.scalar_one_or_none()
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load last summary for {conversation_id}: {e}",
+                    exc_info=True,
+                )
+                last_summary = None
+
+            if last_summary is not None:
+                summarized_count = int(getattr(last_summary, "message_count", 0) or 0)
+                if total_messages - summarized_count < message_threshold:
+                    # Fewer than message_threshold new messages since last summary
+                    return None
+
+            # Generate and persist a new summary over the most recent messages
+            return await self.generate_summary(
+                conversation_id=conversation_id,
+                message_count=min(total_messages, 50),
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to maybe generate summary for conversation {conversation_id}: {e}",
+                exc_info=True,
+            )
+            return None
+
     async def generate_summary(
         self,
         conversation_id: str,
@@ -461,17 +614,17 @@ class ConversationService:
         """Generate a summary of recent messages."""
         try:
             messages = await self.get_messages(conversation_id, limit=message_count)
-            
+
             if len(messages) < 5:  # Need at least 5 messages to summarize
                 logger.info("Not enough messages to summarize")
                 return None
-            
+
             # Build conversation text
             conversation_text = "\n".join([
                 f"{msg.role.upper()}: {msg.content}"
                 for msg in messages
             ])
-            
+
             # Generate summary using Gemini
             summary_prompt = f"""Summarize this conversation concisely. Focus on:
 1. Main topics discussed
@@ -482,13 +635,13 @@ Conversation:
 {conversation_text}
 
 Provide a concise summary (2-3 paragraphs max)."""
-            
+
             summary_text = await self.gemini_client.generate_text(
                 prompt=summary_prompt,
                 temperature=0.3,
                 max_tokens=500
             )
-            
+
             # Extract key topics
             topics_prompt = f"""From this conversation, extract the main topics as a JSON array of strings.
 
@@ -496,13 +649,13 @@ Conversation:
 {conversation_text}
 
 Return ONLY a JSON array like: ["topic1", "topic2", "topic3"]"""
-            
+
             topics_response = await self.gemini_client.generate_text(
                 prompt=topics_prompt,
                 temperature=0.1,
                 max_tokens=200
             )
-            
+
             # Parse topics
             import json
             import re
@@ -511,7 +664,7 @@ Return ONLY a JSON array like: ["topic1", "topic2", "topic3"]"""
                 key_topics = json.loads(topics_match.group(0)) if topics_match else []
             except:
                 key_topics = []
-            
+
             # Create summary record
             summary = ConversationSummary(
                 id=uuid.uuid4(),
@@ -523,43 +676,43 @@ Return ONLY a JSON array like: ["topic1", "topic2", "topic3"]"""
                 key_topics=key_topics,
                 entities_mentioned={}  # TODO: Extract entities
             )
-            
+
             self.db.add(summary)
             await self.db.commit()
             await self.db.refresh(summary)
-            
+
             logger.info(f"Generated summary for conversation {conversation_id}")
             return summary
-            
+
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Failed to generate summary: {e}", exc_info=True)
             return None
-    
+
     async def _generate_title(self, first_message: str) -> str:
         """Generate a title from the first message."""
         try:
             # Use first 50 chars or generate with AI
             if len(first_message) <= 50:
                 return first_message
-            
+
             # Generate concise title
             title_prompt = f"""Generate a short, concise title (max 50 characters) for a conversation that starts with:
 
 "{first_message}"
 
 Return ONLY the title, nothing else."""
-            
+
             title = await self.gemini_client.generate_text(
                 prompt=title_prompt,
                 temperature=0.3,
                 max_tokens=20
             )
-            
+
             # Clean and truncate
             title = title.strip().strip('"').strip("'")
             return title[:50]
-            
+
         except Exception as e:
             logger.warning(f"Failed to generate title: {e}")
             return first_message[:50]

@@ -8,9 +8,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 
 from backend.api import digital_twin_router
-from backend.api.intelligence import router as intelligence_router
+from backend.api.intelligence import router as intelligence_router, v1_router as intelligence_v1_router
 from backend.api.design import router as design_router
 from backend.api.auth import router as auth_router
 from backend.api.chat import router as chat_router
@@ -19,9 +20,19 @@ from backend.api.documents import router as documents_router
 from backend.api.admin import router as admin_router
 from backend.api.monitoring import router as monitoring_router
 from backend.api.journey import router as journey_router
+from backend.api.multimodal import router as multimodal_router
+from backend.api.workflows import router as workflows_router
+from backend.api.chat_workflow import router as chat_workflow_router
 from backend.models.base import init_db_async
 from backend.middleware import RateLimitMiddleware, MonitoringMiddleware
 from backend.services.monitoring_service import get_monitoring_service
+from backend.integrations.pixeltable.client import PixeltableClient
+from backend.integrations.gemini.client import GeminiClient
+from backend.integrations.mcp.client import HomeViewMCPClient
+from backend.services.pixeltable_service import PixeltableService
+from backend.agents.diy.diy_agent import DIYAgent
+from backend.agents.contractor.contractor_agent import ContractorAgent
+from backend.agents.chat.chat_orchestrator import ChatOrchestrator
 from pathlib import Path
 
 # Configure logging
@@ -42,9 +53,50 @@ async def lifespan(app: FastAPI):
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.warning(f"Database initialization skipped: {str(e)}")
-    
+
+    # Initialize Pixeltable and Gemini clients
+    try:
+        logger.info("Initializing Pixeltable client...")
+        pxt_client = PixeltableClient(db_path="pixeltable_data")
+
+        logger.info("Initializing Gemini client...")
+        gemini_client = GeminiClient()
+
+        logger.info("Initializing Pixeltable service...")
+        pixeltable_service = PixeltableService(pxt_client, gemini_client)
+
+        # Initialize MCP client
+        logger.info("Initializing MCP client...")
+        mcp_server_urls = {
+            "video_analysis": "http://localhost:8001",
+            "design_studio": "http://localhost:8002",
+            "product_search": "http://localhost:8003",
+            "diy_guide": "http://localhost:8006"
+        }
+        mcp_client = HomeViewMCPClient(server_urls=mcp_server_urls)
+
+        # Initialize specialized agents
+        logger.info("Initializing specialized agents...")
+        diy_agent = DIYAgent(gemini_client, mcp_client)
+        contractor_agent = ContractorAgent(gemini_client, mcp_client)
+        chat_orchestrator = ChatOrchestrator(gemini_client, mcp_client)
+
+        # Store in app state for dependency injection
+        app.state.pixeltable_service = pixeltable_service
+        app.state.pxt_client = pxt_client
+        app.state.gemini_client = gemini_client
+        app.state.mcp_client = mcp_client
+        app.state.diy_agent = diy_agent
+        app.state.contractor_agent = contractor_agent
+        app.state.chat_orchestrator = chat_orchestrator
+
+        logger.info("Multimodal processing and agents initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize multimodal processing: {e}")
+        # Don't fail startup, just log the error
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down HomeVision AI API...")
 
@@ -157,9 +209,10 @@ An AI-powered SaaS platform for homeowners, DIY workers, and contractors featuri
 # Get allowed origins from environment variable or use defaults
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:8000").split(",")
 
+# For development, allow all origins (including file:// protocol for local HTML files)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,  # Configured via environment variable
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -177,11 +230,22 @@ app.include_router(chat_router)
 app.include_router(product_router)
 app.include_router(digital_twin_router)
 app.include_router(intelligence_router)
+app.include_router(intelligence_v1_router)  # NEW: V1 Intelligence API (image gen, grounding)
 app.include_router(design_router)
 app.include_router(documents_router)
 app.include_router(admin_router)
 app.include_router(monitoring_router)  # NEW: Monitoring and health checks
 app.include_router(journey_router)  # NEW: Journey management
+app.include_router(multimodal_router)  # NEW: Multimodal processing (video/audio/image)
+app.include_router(workflows_router)  # NEW: AI agentic workflows (home tour, DIY, contractor)
+
+# LEGACY: ChatOrchestrator-based chat API (feature-flagged)
+ENABLE_LEGACY_CHAT_ORCHESTRATOR = os.getenv("ENABLE_LEGACY_CHAT_ORCHESTRATOR", "true").lower() == "true"
+if ENABLE_LEGACY_CHAT_ORCHESTRATOR:
+    app.include_router(chat_workflow_router)  # Legacy ChatOrchestrator API (/api/v1/chat/orchestrator/*)
+    logger.info("Legacy ChatOrchestrator API enabled")
+else:
+    logger.info("Legacy ChatOrchestrator API disabled; using ChatWorkflow-only chat API")
 
 # Mount static files for frontend
 frontend_path = Path(__file__).parent.parent / "frontend"
@@ -192,6 +256,12 @@ if frontend_path.exists():
 uploads_path = Path("uploads")
 if uploads_path.exists():
     app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+# Mount generated_images for chat image generations
+generated_path = Path("generated_images")
+if generated_path.exists():
+    app.mount("/generated_images", StaticFiles(directory=str(generated_path)), name="generated_images")
+
+
 
 
 @app.get("/")
@@ -322,6 +392,21 @@ async def get_endpoint_metrics(method: str, path: str):
         }
 
     return metrics
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request, exc: RequestValidationError):
+    """Custom handler for validation errors to avoid encoding binary data."""
+    logger.warning(f"Validation error: {exc}")
+    # Return a simplified error message without trying to encode binary data
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Request validation failed",
+            "error_count": len(exc.errors()),
+            "message": "Please check your request format and try again"
+        }
+    )
 
 
 @app.exception_handler(Exception)

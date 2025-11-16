@@ -42,6 +42,7 @@ from backend.models.conversation import (
     ConversationMessage,
     ConversationSummary,
 )
+from backend.models.memory import UserMemory
 from backend.models.design import (
     DesignProject,
     DesignTransformation,
@@ -103,6 +104,7 @@ __all__ = [
     "Conversation",
     "ConversationMessage",
     "ConversationSummary",
+    "UserMemory",
     "DesignProject",
     "DesignTransformation",
     "DesignVariation",
